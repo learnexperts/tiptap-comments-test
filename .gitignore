@@ -1,0 +1,5 @@
+.env*
+.npmrc
+.cursor
+
+node_modules/

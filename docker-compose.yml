@@ -1,0 +1,18 @@
+services:
+  tiptap-collab:
+    platform: linux/amd64
+    image: container.tiptap.dev/collaboration/server:latest
+    env_file:
+      - ./.env.tiptap-collab
+    environment:
+      DB_PROVIDER: sqlite
+      DATABASE_URL: file:./db.sqlite
+      PORT: 8080
+      JWT_SECRET: dev-jwt-secret
+      API_SECRET: dev-api-secret
+      COLLAB_THREAD_AUTHENTICATOR: 1
+    ports:
+      - "3030:8080"
+      - "3031:8082"
+    networks:
+      - default
