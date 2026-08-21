@@ -1,4 +1,4 @@
-import { threadExistsInDocument } from "@tiptap-pro/extension-comments";
+import { CommentsKit, threadExistsInDocument } from "@tiptap-pro/extension-comments";
 import { TiptapCollabProvider } from "@tiptap-pro/provider";
 import {
   NodePos,
@@ -8,6 +8,9 @@ import {
   type EditorEvents,
   type JSONContent,
 } from "@tiptap/core";
+import Collaboration from "@tiptap/extension-collaboration";
+import { TextStyle } from "@tiptap/extension-text-style";
+import StarterKit from "@tiptap/starter-kit";
 import { assert, vi } from "vitest";
 import { describe, expect, test } from "~/fixtures";
 import recordTransactions from "./utils/recordTransactions";
@@ -17,6 +20,39 @@ interface CommentContentCase {
   selectContent: Command;
   seedContent?: JSONContent;
 }
+
+const styledInlineSeedContent: JSONContent = {
+  type: "doc",
+  content: [
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Before " },
+        {
+          type: "text",
+          text: "bold styled",
+          marks: [
+            { type: "bold" },
+            { type: "textStyle", attrs: { fontFamily: "Arial" } },
+          ],
+        },
+        { type: "text", text: " after" },
+      ],
+    },
+  ],
+};
+
+const selectStyledInline: Command = ({ editor, commands }) => {
+  const nodePos = findNodeOrFail(
+    editor.$doc,
+    (node) =>
+      node.type.name === "text" &&
+      node.marks.some((mark) => mark.type.name === "bold") &&
+      node.marks.some((mark) => mark.type.name === "textStyle")
+  );
+
+  return commands.setTextSelection(getTextRange(nodePos));
+};
 
 describe("tiptap comments", () => {
   describe.for<CommentContentCase>([
@@ -92,37 +128,8 @@ describe("tiptap comments", () => {
     },
     {
       label: "styled inline",
-      selectContent({ editor, commands }) {
-        const nodePos = findNodeOrFail(
-          editor.$doc,
-          (node) =>
-            node.type.name === "text" &&
-            node.marks.some((mark) => mark.type.name === "bold") &&
-            node.marks.some((mark) => mark.type.name === "textStyle")
-        );
-
-        return commands.setTextSelection(getTextRange(nodePos));
-      },
-      seedContent: {
-        type: "doc",
-        content: [
-          {
-            type: "paragraph",
-            content: [
-              { type: "text", text: "Before " },
-              {
-                type: "text",
-                text: "bold styled",
-                marks: [
-                  { type: "bold" },
-                  { type: "textStyle", attrs: { fontFamily: "Arial" } },
-                ],
-              },
-              { type: "text", text: " after" },
-            ],
-          },
-        ],
-      },
+      selectContent: selectStyledInline,
+      seedContent: styledInlineSeedContent,
     },
   ])("with $label selection", ({ selectContent, seedContent }) => {
     test.override("seedContent", seedContent);
@@ -168,6 +175,57 @@ describe("tiptap comments", () => {
 
       expect.soft(before, "Editor JSON changed during sync").toEqual(after);
       await expectThreadExistsInDocument(editor, threadId);
+    });
+  });
+
+  /**
+   * Documents a client-schema mismatch: TextStyle alone cannot represent
+   * fontFamily attrs, so y-prosemirror reconciliation during sync drops the
+   * comment-only user's inlineThread mark.
+   */
+  describe("without FontFamily extension", () => {
+    test.override("seedContent", styledInlineSeedContent);
+    test.override("extensions", async ({ syncedProvider }) => [
+      StarterKit.configure({ undoRedo: false, trailingNode: false }),
+      TextStyle,
+      Collaboration.configure({
+        provider: syncedProvider,
+        document: syncedProvider.document,
+      }),
+      CommentsKit.configure({
+        provider: syncedProvider,
+        deleteUnreferencedThreads: false,
+        useLegacyWrapping: false,
+      }),
+    ]);
+
+    test("comment-only user loses thread anchor after sync on styled text", async ({
+      editor,
+      provider,
+      annotate,
+    }) => {
+      const { threadId } = await createThreadAtSelection(
+        editor,
+        selectStyledInline
+      );
+
+      expect(
+        threadExistsInDocument(editor, threadId),
+        "Thread should exist locally before sync"
+      ).toBeTruthy();
+
+      await flushChanges(provider);
+      const after = editor.getJSON();
+
+      await annotate("content after sync without FontFamily", {
+        body: JSON.stringify(after, null, 2),
+        contentType: "application/json",
+      });
+
+      expect(
+        threadExistsInDocument(editor, threadId),
+        "Thread anchor should be lost after sync when FontFamily is missing"
+      ).toBeFalsy();
     });
   });
 });
