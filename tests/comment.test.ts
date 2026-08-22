@@ -10,6 +10,7 @@ import {
 } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TextStyle } from "@tiptap/extension-text-style";
+import { FontFamily } from "@tiptap/extension-text-style/font-family";
 import StarterKit from "@tiptap/starter-kit";
 import { assert, vi } from "vitest";
 import { describe, expect, test } from "~/fixtures";
@@ -42,6 +43,30 @@ const styledInlineSeedContent: JSONContent = {
   ],
 };
 
+/**
+ * Paragraph with unstyled runs around a single textStyle mark — no bold.
+ * Production lost comment-only anchors on this shape (font-size, highlight).
+ */
+function textStyleOnlySeed(attrs: Record<string, string>): JSONContent {
+  return {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Before " },
+          {
+            type: "text",
+            text: "styled",
+            marks: [{ type: "textStyle", attrs }],
+          },
+          { type: "text", text: " after" },
+        ],
+      },
+    ],
+  };
+}
+
 const selectStyledInline: Command = ({ editor, commands }) => {
   const nodePos = findNodeOrFail(
     editor.$doc,
@@ -52,6 +77,40 @@ const selectStyledInline: Command = ({ editor, commands }) => {
   );
 
   return commands.setTextSelection(getTextRange(nodePos));
+};
+
+/** Select the textStyle run only (no adjacent unstyled characters). */
+const selectTextStyleOnly: Command = ({ editor, commands }) => {
+  const nodePos = findNodeOrFail(
+    editor.$doc,
+    (node) =>
+      node.type.name === "text" &&
+      node.marks.some((mark) => mark.type.name === "textStyle")
+  );
+
+  return commands.setTextSelection(getTextRange(nodePos));
+};
+
+/**
+ * Select from inside the leading unstyled run through the styled run into
+ * the trailing run — the overlap case that still lost background-color anchors.
+ */
+const selectTextStyleOverlap: Command = ({ editor, commands }) => {
+  const before = findNodeOrFail(
+    editor.$doc,
+    (node) => node.type.name === "text" && node.text === "Before "
+  );
+  const after = findNodeOrFail(
+    editor.$doc,
+    (node) => node.type.name === "text" && node.text === " after"
+  );
+  const from = getTextRange(before);
+  const to = getTextRange(after);
+
+  return commands.setTextSelection({
+    from: from.from + 1,
+    to: to.to - 1,
+  });
 };
 
 describe("tiptap comments", () => {
@@ -126,11 +185,6 @@ describe("tiptap comments", () => {
         ],
       },
     },
-    {
-      label: "styled inline",
-      selectContent: selectStyledInline,
-      seedContent: styledInlineSeedContent,
-    },
   ])("with $label selection", ({ selectContent, seedContent }) => {
     test.override("seedContent", seedContent);
 
@@ -174,6 +228,115 @@ describe("tiptap comments", () => {
       });
 
       expect.soft(before, "Editor JSON changed during sync").toEqual(after);
+      await expectThreadExistsInDocument(editor, threadId);
+    });
+  });
+
+  /**
+   * Production schema registers Color / FontSize / BackgroundColor onto
+   * `textStyle`, so unused attrs are `null`. Comment-only sync then drops
+   * the inlineThread mark — including overlap onto unstyled text.
+   *
+   * Control: FontFamily alone (no extra null attrs) still persists; see
+   * "with FontFamily only".
+   */
+  describe.for<CommentContentCase>([
+    {
+      label: "bold + fontFamily",
+      selectContent: selectStyledInline,
+      seedContent: styledInlineSeedContent,
+    },
+    {
+      label: "fontFamily only",
+      selectContent: selectTextStyleOnly,
+      seedContent: textStyleOnlySeed({ fontFamily: "Arial" }),
+    },
+    {
+      label: "color only",
+      selectContent: selectTextStyleOnly,
+      seedContent: textStyleOnlySeed({ color: "#6E1F1F" }),
+    },
+    {
+      label: "fontSize only",
+      selectContent: selectTextStyleOnly,
+      seedContent: textStyleOnlySeed({ fontSize: "36px" }),
+    },
+    {
+      label: "backgroundColor only",
+      selectContent: selectTextStyleOnly,
+      seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+    },
+    {
+      label: "backgroundColor overlap",
+      selectContent: selectTextStyleOverlap,
+      seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+    },
+  ])("with full textStyle kit: $label", ({ selectContent, seedContent }) => {
+    test.override("seedContent", seedContent);
+
+    test("creates the thread locally", async ({ editor }) => {
+      const { threadId } = await createThreadAtSelection(editor, selectContent);
+      await expectThreadExistsInDocument(editor, threadId);
+    });
+
+    test("comment-only user loses thread anchor after sync", async ({
+      editor,
+      provider,
+      annotate,
+    }) => {
+      const { threadId } = await createThreadAtSelection(editor, selectContent);
+
+      expect(
+        threadExistsInDocument(editor, threadId),
+        "Thread should exist locally before sync"
+      ).toBeTruthy();
+
+      await flushChanges(provider);
+      const after = editor.getJSON();
+
+      await annotate("content after sync with full textStyle kit", {
+        body: JSON.stringify(after, null, 2),
+        contentType: "application/json",
+      });
+
+      expect(
+        threadExistsInDocument(editor, threadId),
+        "Thread anchor should be lost after comment-only sync on textStyle"
+      ).toBeFalsy();
+    });
+  });
+
+  /**
+   * Same seed as "bold + fontFamily" above, but `textStyle` only has
+   * `fontFamily` — no Color / FontSize / BackgroundColor null attrs.
+   * Comment-only sync keeps the anchor.
+   */
+  describe("with FontFamily only", () => {
+    test.override("seedContent", styledInlineSeedContent);
+    test.override("extensions", async ({ syncedProvider }) => [
+      StarterKit.configure({ undoRedo: false, trailingNode: false }),
+      TextStyle,
+      FontFamily,
+      Collaboration.configure({
+        provider: syncedProvider,
+        document: syncedProvider.document,
+      }),
+      CommentsKit.configure({
+        provider: syncedProvider,
+        deleteUnreferencedThreads: false,
+        useLegacyWrapping: false,
+      }),
+    ]);
+
+    test("comment-only user keeps thread anchor after sync", async ({
+      editor,
+      provider,
+    }) => {
+      const { threadId } = await createThreadAtSelection(
+        editor,
+        selectStyledInline
+      );
+      await flushChanges(provider);
       await expectThreadExistsInDocument(editor, threadId);
     });
   });

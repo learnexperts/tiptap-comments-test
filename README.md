@@ -1,12 +1,36 @@
 # Tiptap Comments Reproduction
 
-Minimal reproduction for a collab server crash when creating block-level comment threads on a read-only connection with comment privileges.
+Minimal reproductions for TipTap collab + CommentsKit bugs on a **comment-only** connection (`readonlyDocumentNames` + `commentDocumentNames`).
 
-## Bug summary
+There are **two separate failure modes**. Do not conflate them.
 
-Creating a block-level comment thread crashes the on-premises collab server's `beforeHandleMessage` hook with "Unexpected end of array", force-closing the WebSocket connection and losing the thread. Inline comment threads on the same connection type work correctly.
+## Bug 1: Comment-only inline thread lost on `textStyle`
 
-The failing test is **"thread persists after sync"** under **"with 'block' selection"**.
+Creating an inline comment on text that carries a `textStyle` mark loses the **document anchor** after sync. The thread exists locally before sync; after comment-only sync `inlineThread` is gone. Unstyled, bold, and italic text keep the anchor.
+
+This is **not** “empty styles” and **not** “missing FontFamily” in production. The live editor registers Color, FontSize, BackgroundColor, and FontFamily on `textStyle`, so unused attrs are stored as `null`. That full attr bag is enough.
+
+| Client schema | Seed | Anchor after comment-only sync |
+|---|---|---|
+| TextStyle + FontFamily only | bold + `fontFamily: Arial` | **kept** |
+| Full kit (Color, FontSize, BackgroundColor, FontFamily) | any `textStyle` (color, font-size, highlight, font-family, overlap) | **lost** |
+| TextStyle, no FontFamily | bold + `fontFamily: Arial` | **lost** (schema mismatch; Y still has `fontFamily`) |
+
+Exact, subset, and overlap selections all lose the anchor on the full kit.
+
+Tests: `with full textStyle kit: *` and `with FontFamily only` in `tests/comment.test.ts`. Offline writeback (writable Y.Doc, no server): `tests/schema-mismatch.test.ts`.
+
+### Writable vs read-only
+
+On a **writable** local Y.Doc, applying `inlineThread` writes `textStyle` back from the ProseMirror schema. Missing companions clear Y attrs; the **new mark survives**.
+
+On **read-only + `commentDocumentNames`**, the client cannot persist that textStyle rewrite. After the server applies the comment, the **anchor is lost**. `editor.editable` does not control this; the JWT does.
+
+## Bug 2: Block-level thread + collab server crash
+
+Creating a block-level comment thread can crash the on-premises collab server's `beforeHandleMessage` hook with "Unexpected end of array", force-closing the WebSocket and losing the thread.
+
+The historical failing test is **"thread persists after sync"** under **"with 'block' selection"**.
 
 ### Environment
 
@@ -36,7 +60,7 @@ The connection token places the document in `readonlyDocumentNames` and `comment
 
 See [`fixtures/user/claims.ts`](fixtures/user/claims.ts) for the implementation.
 
-### Steps to reproduce
+### Steps to reproduce (block crash)
 
 1. Seed a document with a simple paragraph via the REST API (`POST /api/documents/:name?format=json`)
 2. Connect via WebSocket with a read-only + comment-privileged JWT
@@ -59,15 +83,15 @@ Then crashes processing follow-up sync messages:
 {"level":"error","message":"closing connection <socketId> (while handling <documentName>) because of exception","stack":"Error: Unexpected end of array\n    at LM (/usr/src/app/dist/index.jsc:1:4223867)\n    ..."}
 ```
 
-### What has been ruled out
+### What has been ruled out (block crash)
 
 - **`useLegacyWrapping: true` vs `false`** — same crash either way
 - **`editable: true` vs `false` on the Editor** — irrelevant; the server determines read-only status from the JWT, not the client config
-- **Inline threads work fine** on the same connection type — the issue is specific to the structural Yjs mutation that block-level threads produce
+- **Inline threads on unstyled text work** on the same connection type — the crash is specific to the structural Yjs mutation that block-level threads produce
 
 ### Expected behavior
 
-The block-level comment thread should persist after sync, the same way inline comment threads do.
+The block-level comment thread should persist after sync, the same way inline comment threads on unstyled text do.
 
 ---
 
@@ -124,5 +148,9 @@ The server will be available at `localhost:3030`.
 In a separate terminal:
 
 ```sh
+# Integration (needs Docker collab server)
 pnpm test
+
+# Offline schema-mismatch (no server)
+pnpm exec vitest run tests/schema-mismatch.test.ts
 ```

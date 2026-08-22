@@ -6,7 +6,10 @@ import {
 import { Editor, type Extensions } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TextStyle } from "@tiptap/extension-text-style";
+import { BackgroundColor } from "@tiptap/extension-text-style/background-color";
+import { Color } from "@tiptap/extension-text-style/color";
 import { FontFamily } from "@tiptap/extension-text-style/font-family";
+import { FontSize } from "@tiptap/extension-text-style/font-size";
 import StarterKit from "@tiptap/starter-kit";
 import { type TestAPI } from "vitest";
 import Websocket from "ws";
@@ -51,6 +54,9 @@ export function withEditorFixtures<C extends EditorDeps>(test: TestAPI<C>) {
         StarterKit.configure({ undoRedo: false, trailingNode: false }),
         TextStyle,
         FontFamily,
+        FontSize,
+        Color,
+        BackgroundColor,
         Collaboration.configure({
           provider: syncedProvider,
           document: syncedProvider.document,
