@@ -32,7 +32,11 @@ import {
  * Comment-only sync with the full textStyle kit + CanonicalizeTextStyleAttrs.
  * Matrix of attr shapes (single / multi) × selection (exact / overlap).
  */
-type SelectionKind = "exact" | "overlap";
+type SelectionKind =
+  | "exact"
+  | "overlap"
+  | "partial-overlap-leading"
+  | "partial-overlap-trailing";
 
 interface CanonicalizeCase {
   label: string;
@@ -154,6 +158,61 @@ const selectOverlap: Command = ({ editor, commands }) => {
   });
 };
 
+const selectLeadingPartialOverlap: Command = ({ editor, commands }) => {
+  const before = findNodeOrFail(
+    editor.$doc,
+    (node) => node.type.name === "text" && node.text === "Before "
+  );
+  const styled = findNodeOrFail(
+    editor.$doc,
+    (node) =>
+      node.type.name === "text" &&
+      node.marks.some((mark) => mark.type.name === "textStyle")
+  );
+  const beforeRange = getTextRange(before);
+  const styledRange = getTextRange(styled);
+  const styledLength = styled.node.text?.length ?? 0;
+
+  return commands.setTextSelection({
+    from: beforeRange.from + 1,
+    to: styledRange.from + Math.ceil(styledLength / 2),
+  });
+};
+
+const selectTrailingPartialOverlap: Command = ({ editor, commands }) => {
+  const styled = findNodeOrFail(
+    editor.$doc,
+    (node) =>
+      node.type.name === "text" &&
+      node.marks.some((mark) => mark.type.name === "textStyle")
+  );
+  const after = findNodeOrFail(
+    editor.$doc,
+    (node) => node.type.name === "text" && node.text === " after"
+  );
+  const styledRange = getTextRange(styled);
+  const afterRange = getTextRange(after);
+  const styledLength = styled.node.text?.length ?? 0;
+
+  return commands.setTextSelection({
+    from: styledRange.from + Math.floor(styledLength / 2),
+    to: afterRange.to - 1,
+  });
+};
+
+function selectContentForKind(selection: SelectionKind): Command {
+  if (selection === "exact") {
+    return selectExact;
+  }
+  if (selection === "overlap") {
+    return selectOverlap;
+  }
+  if (selection === "partial-overlap-leading") {
+    return selectLeadingPartialOverlap;
+  }
+  return selectTrailingPartialOverlap;
+}
+
 const cases: CanonicalizeCase[] = [
   {
     label: "fontFamily only",
@@ -202,6 +261,18 @@ const cases: CanonicalizeCase[] = [
     attrs: { backgroundColor: "#E73E3E" },
     expectedAttrs: { backgroundColor: "#E73E3E" },
     selection: "overlap",
+  },
+  {
+    label: "backgroundColor only",
+    attrs: { backgroundColor: "#E73E3E" },
+    expectedAttrs: { backgroundColor: "#E73E3E" },
+    selection: "partial-overlap-leading",
+  },
+  {
+    label: "backgroundColor only",
+    attrs: { backgroundColor: "#E73E3E" },
+    expectedAttrs: { backgroundColor: "#E73E3E" },
+    selection: "partial-overlap-trailing",
   },
   {
     label: "fontFamily + fontSize",
@@ -315,8 +386,7 @@ describe("canonicalizeTextStyleAttrs + full kit", () => {
       "$selection selection: $label",
       ({ label, attrs, expectedAttrs, withBold, selection }) => {
         const seedContent = styledSeed(attrs, { withBold });
-        const selectContent =
-          selection === "exact" ? selectExact : selectOverlap;
+        const selectContent = selectContentForKind(selection);
 
         test.override("seedContent", seedContent);
         test.override("extensions", fullKitCanonicalizeExtensions);

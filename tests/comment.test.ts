@@ -282,6 +282,57 @@ const selectMiddleRunOverlap: Command = ({ editor, commands }) => {
 
 const selectTextStyleOverlap = selectMiddleRunOverlap;
 
+/**
+ * Select from inside the leading unstyled run through part of the styled run
+ * (one mark boundary — does not span the trailing unstyled run).
+ */
+const selectLeadingPartialStyledOverlap: Command = ({ editor, commands }) => {
+  const before = findNodeOrFail(
+    editor.$doc,
+    (node) => node.type.name === "text" && node.text === "Before "
+  );
+  const styled = findNodeOrFail(
+    editor.$doc,
+    (node) =>
+      node.type.name === "text" &&
+      node.marks.some((mark) => mark.type.name === "textStyle")
+  );
+  const beforeRange = getTextRange(before);
+  const styledRange = getTextRange(styled);
+  const styledLength = styled.node.text?.length ?? 0;
+  const partialEnd = styledRange.from + Math.ceil(styledLength / 2);
+
+  return commands.setTextSelection({
+    from: beforeRange.from + 1,
+    to: partialEnd,
+  });
+};
+
+/**
+ * Select from part of the styled run through inside the trailing unstyled run.
+ */
+const selectTrailingPartialStyledOverlap: Command = ({ editor, commands }) => {
+  const styled = findNodeOrFail(
+    editor.$doc,
+    (node) =>
+      node.type.name === "text" &&
+      node.marks.some((mark) => mark.type.name === "textStyle")
+  );
+  const after = findNodeOrFail(
+    editor.$doc,
+    (node) => node.type.name === "text" && node.text === " after"
+  );
+  const styledRange = getTextRange(styled);
+  const afterRange = getTextRange(after);
+  const styledLength = styled.node.text?.length ?? 0;
+  const partialStart = styledRange.from + Math.floor(styledLength / 2);
+
+  return commands.setTextSelection({
+    from: partialStart,
+    to: afterRange.to - 1,
+  });
+};
+
 const selectStyledInline: Command = ({ editor, commands }) => {
   const nodePos = findNodeOrFail(
     editor.$doc,
@@ -305,6 +356,33 @@ const selectTextStyleOnly: Command = ({ editor, commands }) => {
 
   return commands.setTextSelection(getTextRange(nodePos));
 };
+
+/** Select a character slice within the textStyle-marked run (offsets from run start). */
+function selectStyledTextStyleSlice(
+  startOffset: number,
+  endOffset: number
+): Command {
+  return ({ editor, commands }) => {
+    const styled = findNodeOrFail(
+      editor.$doc,
+      (node) =>
+        node.type.name === "text" &&
+        node.marks.some((mark) => mark.type.name === "textStyle")
+    );
+    const styledRange = getTextRange(styled);
+
+    return commands.setTextSelection({
+      from: styledRange.from + startOffset,
+      to: styledRange.from + endOffset,
+    });
+  };
+}
+
+/** First four characters of the styled run ("styl" on the default seed). */
+const selectStyledRunLeading = selectStyledTextStyleSlice(0, 4);
+
+/** Last four characters of the styled run ("yled"); overlaps "ty" with leading slice. */
+const selectStyledRunTrailing = selectStyledTextStyleSlice(2, 6);
 
 describe("setThread", () => {
   describe("comment-only user", () => {
@@ -411,6 +489,36 @@ describe("setThread", () => {
         label: "overlap selection of styled text [backgroundColor only]",
         selectContent: selectTextStyleOverlap,
         seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+        expectServerThreadMetadata: true,
+      },
+      {
+        label:
+          "partial overlap selection of styled text [backgroundColor only, leading edge]",
+        selectContent: selectLeadingPartialStyledOverlap,
+        seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+        expectServerThreadMetadata: true,
+      },
+      {
+        label:
+          "partial overlap selection of styled text [backgroundColor only, trailing edge]",
+        selectContent: selectTrailingPartialStyledOverlap,
+        seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+        expectServerThreadMetadata: true,
+      },
+      {
+        label:
+          "partial overlap selection of styled text [backgroundColor only, leading edge, canonicalize attrs]",
+        selectContent: selectLeadingPartialStyledOverlap,
+        seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+        getExtensions: canonicalizeAttrsExtensions,
+        expectServerThreadMetadata: true,
+      },
+      {
+        label:
+          "partial overlap selection of styled text [backgroundColor only, trailing edge, canonicalize attrs]",
+        selectContent: selectTrailingPartialStyledOverlap,
+        seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+        getExtensions: canonicalizeAttrsExtensions,
         expectServerThreadMetadata: true,
       },
       {
@@ -638,6 +746,60 @@ describe("setThread", () => {
       }
     );
 
+    describe("two overlapping threads on styled text", () => {
+      const seedContent = textStyleOnlySeed({ backgroundColor: "#E73E3E" });
+
+      test.override("seedContent", seedContent);
+
+      test("creates both threads locally", async ({ editor }) => {
+        const { firstThreadId, secondThreadId } =
+          await createTwoThreadsAtSelections(
+            editor,
+            selectStyledRunLeading,
+            selectStyledRunTrailing
+          );
+
+        expect(firstThreadId).not.toBe(secondThreadId);
+        await expectThreadExistsInDocument(editor, firstThreadId);
+        await expectThreadExistsInDocument(editor, secondThreadId);
+      });
+
+      test("keeps both thread anchors after sync", async ({
+        editor,
+        provider,
+        annotate,
+      }) => {
+        const { firstThreadId, secondThreadId } =
+          await createTwoThreadsAtSelections(
+            editor,
+            selectStyledRunLeading,
+            selectStyledRunTrailing
+          );
+
+        expect(
+          threadExistsInDocument(editor, firstThreadId),
+          "First thread should exist locally before sync"
+        ).toBeTruthy();
+        expect(
+          threadExistsInDocument(editor, secondThreadId),
+          "Second thread should exist locally before sync"
+        ).toBeTruthy();
+
+        await flushChanges(provider);
+
+        await annotate(
+          "content after sync: two overlapping threads on styled text [backgroundColor only]",
+          {
+            body: JSON.stringify(editor.getJSON(), null, 2),
+            contentType: "application/json",
+          }
+        );
+
+        await expectThreadExistsInDocument(editor, firstThreadId);
+        await expectThreadExistsInDocument(editor, secondThreadId);
+      });
+    });
+
     /**
      * Y equality experiment: compare styling attrs in Y before vs after local
      * setThread (pre-sync). Separates spurious writeback from server allowlist.
@@ -761,6 +923,22 @@ const createThreadAtSelection = vi.defineHelper(
     );
 
     return pending;
+  }
+);
+
+const createTwoThreadsAtSelections = vi.defineHelper(
+  async function createTwoThreadsAtSelections(
+    editor: Editor,
+    firstSelect: Command,
+    secondSelect: Command
+  ) {
+    const first = await createThreadAtSelection(editor, firstSelect);
+    const second = await createThreadAtSelection(editor, secondSelect);
+
+    return {
+      firstThreadId: first.threadId,
+      secondThreadId: second.threadId,
+    };
   }
 );
 
