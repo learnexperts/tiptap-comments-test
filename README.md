@@ -13,12 +13,20 @@ This is **not** “empty styles” and **not** “missing FontFamily” in produ
 | Client schema | Seed | Anchor after comment-only sync |
 |---|---|---|
 | TextStyle + FontFamily only | bold + `fontFamily: Arial` | **kept** |
-| Full kit (Color, FontSize, BackgroundColor, FontFamily) | any `textStyle` (color, font-size, highlight, font-family, overlap) | **lost** |
+| Full kit + `SparseTextStyleDefaults` | exact `textStyle` (color, font-size, highlight, font-family) | **kept** |
+| Full kit + `SparseTextStyleDefaults` | overlap selection onto `textStyle` | **lost** |
+| Full kit (no workaround) | any `textStyle` | **lost** |
 | TextStyle, no FontFamily | bold + `fontFamily: Arial` | **lost** (schema mismatch; Y still has `fontFamily`) |
 
-Exact, subset, and overlap selections all lose the anchor on the full kit.
+### Workaround (approach 2): sparse ProseMirror defaults
 
-Tests: `with full textStyle kit: *` and `with FontFamily only` in `tests/comment.test.ts`. Offline writeback (writable Y.Doc, no server): `tests/schema-mismatch.test.ts`.
+`StripNullTextStyleAttrs` (`appendTransaction`) alone does **not** fix writeback: `mark.create({ fontFamily })` still merges schema `default: null` from Color / FontSize / etc.
+
+Register **`SparseTextStyleDefaults`** after the full textStyle kit so unset attrs use `undefined` instead of `null`. y-prosemirror then writes sparse Y (`textStyle: { fontFamily: "Arial" }` only). See `fixtures/editor/sparseTextStyleDefaults.ts`.
+
+Exact and subset selections pass integration tests with this extension. Overlap selections on `backgroundColor` still lose the anchor: the server stores thread metadata (REST `getThread`) but the document JSON has no `inlineThread` mark after sync.
+
+Tests: `with full textStyle kit: *`, overlap describe, and `with FontFamily only` in `tests/comment.test.ts`. Offline: `tests/schema-mismatch.test.ts`, `tests/sparse-text-style-attrs.test.ts`.
 
 ### Writable vs read-only
 

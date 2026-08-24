@@ -14,6 +14,8 @@ import StarterKit from "@tiptap/starter-kit";
 import { type TestAPI } from "vitest";
 import Websocket from "ws";
 import { type TiptapToken } from "../user";
+import { CanonicalizeTextStyleAttrs } from "./canonicalizeTextStyleAttrs";
+import { SparseTextStyleDefaults } from "./sparseTextStyleDefaults";
 import { waitForSync } from "./waitForSync";
 
 interface EditorDeps {
@@ -57,6 +59,8 @@ export function withEditorFixtures<C extends EditorDeps>(test: TestAPI<C>) {
         FontSize,
         Color,
         BackgroundColor,
+        SparseTextStyleDefaults,
+        CanonicalizeTextStyleAttrs,
         Collaboration.configure({
           provider: syncedProvider,
           document: syncedProvider.document,

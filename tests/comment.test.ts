@@ -1,4 +1,7 @@
-import { CommentsKit, threadExistsInDocument } from "@tiptap-pro/extension-comments";
+import {
+  CommentsKit,
+  threadExistsInDocument,
+} from "@tiptap-pro/extension-comments";
 import { TiptapCollabProvider } from "@tiptap-pro/provider";
 import {
   NodePos,
@@ -6,21 +9,133 @@ import {
   type Command,
   type Editor,
   type EditorEvents,
+  type Extensions,
   type JSONContent,
 } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TextStyle } from "@tiptap/extension-text-style";
+import { BackgroundColor } from "@tiptap/extension-text-style/background-color";
+import { Color } from "@tiptap/extension-text-style/color";
 import { FontFamily } from "@tiptap/extension-text-style/font-family";
+import { FontSize } from "@tiptap/extension-text-style/font-size";
 import StarterKit from "@tiptap/starter-kit";
 import { assert, vi } from "vitest";
 import { describe, expect, test } from "~/fixtures";
+import {
+  CanonicalizeTextStyleAttrs,
+  CompactTextStyleYAttrs,
+  ReproFacet,
+  ReproGlint,
+  SparseTextStyleDefaults,
+  StripNullTextStyleAttrs,
+} from "~/fixtures/editor";
+import {
+  reproFacetValuesEqual,
+  textStyleValuesEqual,
+  yDocFromEditor,
+  yTextSegments,
+} from "~/fixtures/editor/yMarkSnapshots";
 import recordTransactions from "./utils/recordTransactions";
 
 interface CommentContentCase {
   label: string;
   selectContent: Command;
-  seedContent?: JSONContent;
+  seedContent: JSONContent;
+  getExtensions?: (deps: ExtensionDeps) => Extensions | Promise<Extensions>;
+  /** When false, sync is expected to drop the document anchor (failing test). */
+  expectAnchorAfterSync?: boolean;
+  /** Overlap cases where REST thread metadata survives but anchor is lost. */
+  expectServerThreadMetadata?: boolean;
+  recordSyncTransactions?: boolean;
 }
+
+const starterKit = StarterKit.configure({
+  undoRedo: false,
+  trailingNode: false,
+});
+
+type ExtensionDeps = { syncedProvider: TiptapCollabProvider };
+
+function withCommentsKit(
+  syncedProvider: TiptapCollabProvider,
+  extensions: Extensions
+): Extensions {
+  return [
+    ...extensions,
+    Collaboration.configure({
+      provider: syncedProvider,
+      document: syncedProvider.document,
+    }),
+    CommentsKit.configure({
+      provider: syncedProvider,
+      deleteUnreferencedThreads: false,
+      useLegacyWrapping: false,
+    }),
+  ];
+}
+
+const fullKitSparseExtensions = ({ syncedProvider }: ExtensionDeps) =>
+  withCommentsKit(syncedProvider, [
+    starterKit,
+    TextStyle,
+    FontFamily,
+    FontSize,
+    Color,
+    BackgroundColor,
+    SparseTextStyleDefaults,
+    CanonicalizeTextStyleAttrs,
+  ]);
+
+const fontFamilyOnlyExtensions = ({ syncedProvider }: ExtensionDeps) =>
+  withCommentsKit(syncedProvider, [starterKit, TextStyle, FontFamily]);
+
+const textStyleOnlyExtensions = ({ syncedProvider }: ExtensionDeps) =>
+  withCommentsKit(syncedProvider, [starterKit, TextStyle]);
+
+const starterKitOnlyExtensions = ({ syncedProvider }: ExtensionDeps) =>
+  withCommentsKit(syncedProvider, [starterKit]);
+
+const reproGlintExtensions = ({ syncedProvider }: ExtensionDeps) =>
+  withCommentsKit(syncedProvider, [starterKit, ReproGlint]);
+
+const reproFacetExtensions = ({ syncedProvider }: ExtensionDeps) =>
+  withCommentsKit(syncedProvider, [starterKit, ReproFacet]);
+
+const stripNullPmAttrsExtensions = ({ syncedProvider }: ExtensionDeps) =>
+  withCommentsKit(syncedProvider, [
+    starterKit,
+    TextStyle,
+    FontFamily,
+    FontSize,
+    Color,
+    BackgroundColor,
+    SparseTextStyleDefaults,
+    CanonicalizeTextStyleAttrs,
+    StripNullTextStyleAttrs,
+  ]);
+
+const compactYAttrsExtensions = ({ syncedProvider }: ExtensionDeps) =>
+  withCommentsKit(syncedProvider, [
+    starterKit,
+    TextStyle,
+    FontFamily,
+    FontSize,
+    Color,
+    BackgroundColor,
+    CompactTextStyleYAttrs,
+  ]);
+
+const canonicalizeAttrsExtensions = ({ syncedProvider }: ExtensionDeps) =>
+  withCommentsKit(syncedProvider, [
+    starterKit,
+    TextStyle,
+    FontFamily,
+    FontSize,
+    Color,
+    BackgroundColor,
+    SparseTextStyleDefaults,
+    CanonicalizeTextStyleAttrs,
+  ]);
 
 const styledInlineSeedContent: JSONContent = {
   type: "doc",
@@ -67,6 +182,106 @@ function textStyleOnlySeed(attrs: Record<string, string>): JSONContent {
   };
 }
 
+const boldOnlySeed: JSONContent = {
+  type: "doc",
+  content: [
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "Before " },
+        { type: "text", text: "bold", marks: [{ type: "bold" }] },
+        { type: "text", text: " after" },
+      ],
+    },
+  ],
+};
+
+function reproGlintOnlySeed(tint: string): JSONContent {
+  return {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Before " },
+          {
+            type: "text",
+            text: "marked",
+            marks: [{ type: "reproGlint", attrs: { tint } }],
+          },
+          { type: "text", text: " after" },
+        ],
+      },
+    ],
+  };
+}
+
+const selectReproGlintOnly: Command = ({ editor, commands }) => {
+  const nodePos = findNodeOrFail(
+    editor.$doc,
+    (node) =>
+      node.type.name === "text" &&
+      node.marks.some((mark) => mark.type.name === "reproGlint")
+  );
+
+  return commands.setTextSelection(getTextRange(nodePos));
+};
+
+function reproFacetOnlySeed(attrs: Record<string, string>): JSONContent {
+  return {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Before " },
+          {
+            type: "text",
+            text: "styled",
+            marks: [{ type: "reproFacet", attrs }],
+          },
+          { type: "text", text: " after" },
+        ],
+      },
+    ],
+  };
+}
+
+const selectReproFacetOnly: Command = ({ editor, commands }) => {
+  const nodePos = findNodeOrFail(
+    editor.$doc,
+    (node) =>
+      node.type.name === "text" &&
+      node.marks.some((mark) => mark.type.name === "reproFacet")
+  );
+
+  return commands.setTextSelection(getTextRange(nodePos));
+};
+
+/**
+ * Select from inside the leading unstyled run through the middle run into
+ * the trailing run — overlap across a mark boundary.
+ */
+const selectMiddleRunOverlap: Command = ({ editor, commands }) => {
+  const before = findNodeOrFail(
+    editor.$doc,
+    (node) => node.type.name === "text" && node.text === "Before "
+  );
+  const after = findNodeOrFail(
+    editor.$doc,
+    (node) => node.type.name === "text" && node.text === " after"
+  );
+  const from = getTextRange(before);
+  const to = getTextRange(after);
+
+  return commands.setTextSelection({
+    from: from.from + 1,
+    to: to.to - 1,
+  });
+};
+
+const selectTextStyleOverlap = selectMiddleRunOverlap;
+
 const selectStyledInline: Command = ({ editor, commands }) => {
   const nodePos = findNodeOrFail(
     editor.$doc,
@@ -91,304 +306,434 @@ const selectTextStyleOnly: Command = ({ editor, commands }) => {
   return commands.setTextSelection(getTextRange(nodePos));
 };
 
-/**
- * Select from inside the leading unstyled run through the styled run into
- * the trailing run — the overlap case that still lost background-color anchors.
- */
-const selectTextStyleOverlap: Command = ({ editor, commands }) => {
-  const before = findNodeOrFail(
-    editor.$doc,
-    (node) => node.type.name === "text" && node.text === "Before "
-  );
-  const after = findNodeOrFail(
-    editor.$doc,
-    (node) => node.type.name === "text" && node.text === " after"
-  );
-  const from = getTextRange(before);
-  const to = getTextRange(after);
-
-  return commands.setTextSelection({
-    from: from.from + 1,
-    to: to.to - 1,
-  });
-};
-
-describe("tiptap comments", () => {
-  describe.for<CommentContentCase>([
-    {
-      label: "block",
-      selectContent({ editor, commands }) {
-        const node = findNodeOrFail(
-          editor.$doc,
-          (node) => node.type.name === "paragraph"
-        );
-        return commands.setNodeSelection(node.pos);
+describe("setThread", () => {
+  describe("comment-only user", () => {
+    describe.for<CommentContentCase>([
+      {
+        label: "block selection",
+        selectContent({ editor, commands }) {
+          const node = findNodeOrFail(
+            editor.$doc,
+            (node) => node.type.name === "paragraph"
+          );
+          return commands.setNodeSelection(node.pos);
+        },
+        seedContent: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "Hello, world!" }],
+            },
+          ],
+        },
+        recordSyncTransactions: true,
       },
-      seedContent: {
-        type: "doc",
-        content: [
-          {
-            type: "paragraph",
-            content: [{ type: "text", text: "Hello, world!" }],
-          },
-        ],
+      {
+        label: "basic inline selection",
+        selectContent({ editor, commands }) {
+          const range = getTextRange(
+            findNodeOrFail(editor.$doc, (node) => node.type.name === "text")
+          );
+          return commands.setTextSelection({
+            from: range.from + 1,
+            to: range.to - 1,
+          });
+        },
+        seedContent: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "Hello, world!" }],
+            },
+          ],
+        },
+        recordSyncTransactions: true,
       },
-    },
-    {
-      label: "inline",
-      selectContent({ editor, commands }) {
-        const range = getTextRange(
-          findNodeOrFail(editor.$doc, (node) => node.type.name === "text")
-        );
-        return commands.setTextSelection({
-          from: range.from + 1,
-          to: range.to - 1,
+      {
+        label: "selection of bolded text",
+        selectContent({ editor, commands }) {
+          const nodePos = findNodeOrFail(
+            editor.$doc,
+            (node) =>
+              node.type.name === "text" &&
+              node.marks.some((mark) => mark.type.name === "bold")
+          );
+
+          return commands.setTextSelection(getTextRange(nodePos));
+        },
+        seedContent: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Before " },
+                {
+                  type: "text",
+                  text: "bold",
+                  marks: [{ type: "bold" }],
+                },
+                { type: "text", text: " after" },
+              ],
+            },
+          ],
+        },
+        recordSyncTransactions: true,
+      },
+      {
+        label: "exact selection of styled text [bold + fontFamily]",
+        selectContent: selectStyledInline,
+        seedContent: styledInlineSeedContent,
+      },
+      {
+        label: "exact selection of styled text [fontFamily only]",
+        selectContent: selectTextStyleOnly,
+        seedContent: textStyleOnlySeed({ fontFamily: "Arial" }),
+      },
+      {
+        label: "exact selection of styled text [color only]",
+        selectContent: selectTextStyleOnly,
+        seedContent: textStyleOnlySeed({ color: "#6E1F1F" }),
+      },
+      {
+        label: "exact selection of styled text [fontSize only]",
+        selectContent: selectTextStyleOnly,
+        seedContent: textStyleOnlySeed({ fontSize: "36px" }),
+      },
+      {
+        label: "exact selection of styled text [backgroundColor only]",
+        selectContent: selectTextStyleOnly,
+        seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+      },
+      {
+        label: "overlap selection of styled text [backgroundColor only]",
+        selectContent: selectTextStyleOverlap,
+        seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+        expectServerThreadMetadata: true,
+      },
+      {
+        label:
+          "overlap selection of styled text [backgroundColor only, canonicalize attrs]",
+        selectContent: selectTextStyleOverlap,
+        seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
+        getExtensions: canonicalizeAttrsExtensions,
+        expectServerThreadMetadata: true,
+      },
+      {
+        label:
+          "overlap selection of styled text [fontFamily only, FontFamily extension only]",
+        selectContent: selectTextStyleOverlap,
+        seedContent: textStyleOnlySeed({ fontFamily: "Arial" }),
+        getExtensions: fontFamilyOnlyExtensions,
+      },
+      {
+        label:
+          "overlap selection of styled text [fontFamily only, canonicalize attrs]",
+        selectContent: selectTextStyleOverlap,
+        seedContent: textStyleOnlySeed({ fontFamily: "Arial" }),
+        getExtensions: canonicalizeAttrsExtensions,
+      },
+      {
+        label: "overlap selection of styled text [bold + fontFamily]",
+        selectContent: selectMiddleRunOverlap,
+        seedContent: styledInlineSeedContent,
+        expectServerThreadMetadata: true,
+      },
+      {
+        label:
+          "overlap selection of styled text [bold + fontFamily, canonicalize attrs]",
+        selectContent: selectMiddleRunOverlap,
+        seedContent: styledInlineSeedContent,
+        getExtensions: canonicalizeAttrsExtensions,
+        expectServerThreadMetadata: true,
+      },
+      {
+        label: "exact selection of reproGlint marked text",
+        selectContent: selectReproGlintOnly,
+        seedContent: reproGlintOnlySeed("#7A3E9C"),
+        getExtensions: reproGlintExtensions,
+      },
+      {
+        label: "overlap selection of reproGlint marked text",
+        selectContent: selectMiddleRunOverlap,
+        seedContent: reproGlintOnlySeed("#7A3E9C"),
+        getExtensions: reproGlintExtensions,
+      },
+      {
+        label: "exact selection of reproFacet marked text [fontFamily only]",
+        selectContent: selectReproFacetOnly,
+        seedContent: reproFacetOnlySeed({ fontFamily: "Arial" }),
+        getExtensions: reproFacetExtensions,
+      },
+      {
+        label: "overlap selection of reproFacet marked text [fontFamily only]",
+        selectContent: selectMiddleRunOverlap,
+        seedContent: reproFacetOnlySeed({ fontFamily: "Arial" }),
+        getExtensions: reproFacetExtensions,
+      },
+      {
+        label:
+          "exact selection of reproFacet marked text [backgroundColor only]",
+        selectContent: selectReproFacetOnly,
+        seedContent: reproFacetOnlySeed({ backgroundColor: "#E73E3E" }),
+        getExtensions: reproFacetExtensions,
+      },
+      {
+        label:
+          "overlap selection of reproFacet marked text [backgroundColor only]",
+        selectContent: selectMiddleRunOverlap,
+        seedContent: reproFacetOnlySeed({ backgroundColor: "#E73E3E" }),
+        getExtensions: reproFacetExtensions,
+      },
+      {
+        label: "overlap selection of bolded text",
+        selectContent: selectMiddleRunOverlap,
+        seedContent: boldOnlySeed,
+        getExtensions: starterKitOnlyExtensions,
+      },
+      {
+        label:
+          "exact selection of styled text [bold + fontFamily, sparse PM defaults]",
+        selectContent: selectStyledInline,
+        seedContent: styledInlineSeedContent,
+        getExtensions: fullKitSparseExtensions,
+      },
+      {
+        label:
+          "exact selection of styled text [bold + fontFamily, strip null PM attrs]",
+        selectContent: selectStyledInline,
+        seedContent: styledInlineSeedContent,
+        getExtensions: stripNullPmAttrsExtensions,
+      },
+      {
+        label:
+          "exact selection of styled text [bold + fontFamily, sparse Y attrs only]",
+        selectContent: selectStyledInline,
+        seedContent: styledInlineSeedContent,
+        getExtensions: compactYAttrsExtensions,
+      },
+      {
+        label:
+          "exact selection of styled text [bold + fontFamily, FontFamily extension only]",
+        selectContent: selectStyledInline,
+        seedContent: styledInlineSeedContent,
+        getExtensions: fontFamilyOnlyExtensions,
+      },
+      {
+        label:
+          "exact selection of styled text [bold + fontFamily, without FontFamily extension]",
+        selectContent: selectStyledInline,
+        seedContent: styledInlineSeedContent,
+        getExtensions: textStyleOnlyExtensions,
+      },
+    ])(
+      "with $label",
+      ({
+        label,
+        selectContent,
+        seedContent,
+        getExtensions,
+        expectAnchorAfterSync = true,
+        expectServerThreadMetadata = false,
+        recordSyncTransactions = false,
+      }) => {
+        test.override("seedContent", seedContent);
+        if (getExtensions) {
+          test.override("extensions", getExtensions);
+        }
+
+        test("creates the thread locally", async ({ editor }) => {
+          const { threadId } = await createThreadAtSelection(
+            editor,
+            selectContent
+          );
+          await expectThreadExistsInDocument(editor, threadId);
         });
-      },
-      seedContent: {
-        type: "doc",
-        content: [
-          {
-            type: "paragraph",
-            content: [{ type: "text", text: "Hello, world!" }],
-          },
-        ],
-      },
-    },
-    {
-      label: "styled inline (simple)",
-      selectContent({ editor, commands }) {
-        const nodePos = findNodeOrFail(
-          editor.$doc,
-          (node) =>
-            node.type.name === "text" &&
-            node.marks.some((mark) => mark.type.name === "bold")
-        );
 
-        return commands.setTextSelection(getTextRange(nodePos));
-      },
-      seedContent: {
-        type: "doc",
-        content: [
-          {
-            type: "paragraph",
-            content: [
-              { type: "text", text: "Before " },
-              {
-                type: "text",
-                text: "bold",
-                marks: [{ type: "bold" }],
-              },
-              { type: "text", text: " after" },
-            ],
-          },
-        ],
-      },
-    },
-  ])("with $label selection", ({ selectContent, seedContent }) => {
-    test.override("seedContent", seedContent);
+        if (expectServerThreadMetadata) {
+          test("server stores thread metadata after sync", async ({
+            editor,
+            provider,
+            client,
+            documentName,
+          }) => {
+            const { threadId } = await createThreadAtSelection(
+              editor,
+              selectContent
+            );
 
-    test("can create thread on selection", async ({ editor }) => {
-      const { threadId } = await createThreadAtSelection(editor, selectContent);
-      await expectThreadExistsInDocument(editor, threadId);
-    });
+            await flushChanges(provider);
 
-    test("thread persists after sync", async ({
-      editor,
-      provider,
-      annotate,
-      onTestFailed,
-      onTestFinished,
-    }) => {
-      const recorder = recordTransactions(
-        editor,
-        (transaction) => transaction.getMeta("debug") === "test-thread-creation"
-      );
+            const serverThread = await client.getThread(documentName, threadId);
+            expect(serverThread.id).toBe(threadId);
+            expect(serverThread.comments[0]?.content).toBe("[test-content]");
+          });
+        }
 
-      onTestFailed(() => {
-        console.log(
-          "transaction steps:",
-          JSON.stringify(recorder.getTransactionSteps(), null, 2)
-        );
+        test("keeps thread anchor after sync", async ({
+          editor,
+          provider,
+          annotate,
+          onTestFailed,
+          onTestFinished,
+        }) => {
+          const recorder = recordSyncTransactions
+            ? recordTransactions(
+                editor,
+                (transaction) =>
+                  transaction.getMeta("debug") === "test-thread-creation"
+              )
+            : null;
+
+          if (recorder) {
+            onTestFailed(() => {
+              console.log(
+                "transaction steps:",
+                JSON.stringify(recorder.getTransactionSteps(), null, 2)
+              );
+            });
+
+            onTestFinished(() => {
+              recorder.unsubscribe();
+            });
+          }
+
+          const { threadId } = await createThreadAtSelection(
+            editor,
+            selectContent
+          );
+
+          expect(
+            threadExistsInDocument(editor, threadId),
+            "Thread should exist locally before sync"
+          ).toBeTruthy();
+
+          const before = recordSyncTransactions ? editor.getJSON() : null;
+          await flushChanges(provider);
+          const after = editor.getJSON();
+
+          await annotate(`content after sync: ${label}`, {
+            body: JSON.stringify(after, null, 2),
+            contentType: "application/json",
+          });
+
+          if (before) {
+            expect
+              .soft(before, "Editor JSON changed during sync")
+              .toEqual(after);
+          }
+
+          if (expectAnchorAfterSync) {
+            await expectThreadExistsInDocument(editor, threadId);
+            return;
+          }
+
+          expect(
+            threadExistsInDocument(editor, threadId),
+            "Expected document anchor to be lost after sync"
+          ).toBe(false);
+        });
+      }
+    );
+
+    /**
+     * Y equality experiment: compare styling attrs in Y before vs after local
+     * setThread (pre-sync). Separates spurious writeback from server allowlist.
+     */
+    describe("Y mark equality before sync", () => {
+      describe("reproFacet", () => {
+        const seed = reproFacetOnlySeed({ fontFamily: "Arial" });
+
+        test.override("seedContent", seed);
+        test.override("extensions", reproFacetExtensions);
+
+        test("exact: reproFacet Y values unchanged locally, anchor kept on sync", async ({
+          editor,
+          provider,
+        }) => {
+          const ydoc = yDocFromEditor(editor);
+          const before = yTextSegments(ydoc);
+
+          const { threadId } = await createThreadAtSelection(
+            editor,
+            selectReproFacetOnly
+          );
+          const afterLocal = yTextSegments(ydoc);
+
+          expect(reproFacetValuesEqual(before, afterLocal)).toBe(true);
+
+          await flushChanges(provider);
+          await expectThreadExistsInDocument(editor, threadId);
+        });
+
+        test("overlap: reproFacet values may change locally; anchor lost on sync", async ({
+          editor,
+          provider,
+        }) => {
+          const ydoc = yDocFromEditor(editor);
+          const before = yTextSegments(ydoc);
+
+          const { threadId } = await createThreadAtSelection(
+            editor,
+            selectMiddleRunOverlap
+          );
+          const afterLocal = yTextSegments(ydoc);
+
+          expect(threadExistsInDocument(editor, threadId)).toBeTruthy();
+
+          await flushChanges(provider);
+
+          expect(threadExistsInDocument(editor, threadId)).toBe(false);
+        });
       });
 
-      onTestFinished(() => {
-        recorder.unsubscribe();
+      describe("textStyle + sparse defaults", () => {
+        const seed = textStyleOnlySeed({ fontFamily: "Arial" });
+
+        test.override("seedContent", seed);
+        test.override("extensions", fullKitSparseExtensions);
+
+        test("exact: textStyle Y values unchanged locally, anchor kept on sync", async ({
+          editor,
+          provider,
+        }) => {
+          const ydoc = yDocFromEditor(editor);
+          const before = yTextSegments(ydoc);
+
+          const { threadId } = await createThreadAtSelection(
+            editor,
+            selectTextStyleOnly
+          );
+          const afterLocal = yTextSegments(ydoc);
+
+          expect(textStyleValuesEqual(before, afterLocal)).toBe(true);
+
+          await flushChanges(provider);
+          await expectThreadExistsInDocument(editor, threadId);
+        });
+
+        test("overlap: textStyle values unchanged in Y, anchor kept on sync", async ({
+          editor,
+          provider,
+        }) => {
+          const ydoc = yDocFromEditor(editor);
+          const before = yTextSegments(ydoc);
+
+          const { threadId } = await createThreadAtSelection(
+            editor,
+            selectMiddleRunOverlap
+          );
+          const afterLocal = yTextSegments(ydoc);
+
+          expect(textStyleValuesEqual(before, afterLocal)).toBe(true);
+          expect(threadExistsInDocument(editor, threadId)).toBeTruthy();
+
+          await flushChanges(provider);
+          await expectThreadExistsInDocument(editor, threadId);
+        });
       });
-
-      const { threadId } = await createThreadAtSelection(editor, selectContent);
-
-      const before = editor.getJSON();
-      await flushChanges(provider);
-      const after = editor.getJSON();
-
-      await annotate("content after sync", {
-        body: JSON.stringify(after, null, 2),
-        contentType: "application/json",
-      });
-
-      expect.soft(before, "Editor JSON changed during sync").toEqual(after);
-      await expectThreadExistsInDocument(editor, threadId);
-    });
-  });
-
-  /**
-   * Production schema registers Color / FontSize / BackgroundColor onto
-   * `textStyle`, so unused attrs are `null`. Comment-only sync then drops
-   * the inlineThread mark — including overlap onto unstyled text.
-   *
-   * Control: FontFamily alone (no extra null attrs) still persists; see
-   * "with FontFamily only".
-   */
-  describe.for<CommentContentCase>([
-    {
-      label: "bold + fontFamily",
-      selectContent: selectStyledInline,
-      seedContent: styledInlineSeedContent,
-    },
-    {
-      label: "fontFamily only",
-      selectContent: selectTextStyleOnly,
-      seedContent: textStyleOnlySeed({ fontFamily: "Arial" }),
-    },
-    {
-      label: "color only",
-      selectContent: selectTextStyleOnly,
-      seedContent: textStyleOnlySeed({ color: "#6E1F1F" }),
-    },
-    {
-      label: "fontSize only",
-      selectContent: selectTextStyleOnly,
-      seedContent: textStyleOnlySeed({ fontSize: "36px" }),
-    },
-    {
-      label: "backgroundColor only",
-      selectContent: selectTextStyleOnly,
-      seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
-    },
-    {
-      label: "backgroundColor overlap",
-      selectContent: selectTextStyleOverlap,
-      seedContent: textStyleOnlySeed({ backgroundColor: "#E73E3E" }),
-    },
-  ])("with full textStyle kit: $label", ({ selectContent, seedContent }) => {
-    test.override("seedContent", seedContent);
-
-    test("creates the thread locally", async ({ editor }) => {
-      const { threadId } = await createThreadAtSelection(editor, selectContent);
-      await expectThreadExistsInDocument(editor, threadId);
-    });
-
-    test("comment-only user loses thread anchor after sync", async ({
-      editor,
-      provider,
-      annotate,
-    }) => {
-      const { threadId } = await createThreadAtSelection(editor, selectContent);
-
-      expect(
-        threadExistsInDocument(editor, threadId),
-        "Thread should exist locally before sync"
-      ).toBeTruthy();
-
-      await flushChanges(provider);
-      const after = editor.getJSON();
-
-      await annotate("content after sync with full textStyle kit", {
-        body: JSON.stringify(after, null, 2),
-        contentType: "application/json",
-      });
-
-      expect(
-        threadExistsInDocument(editor, threadId),
-        "Thread anchor should be lost after comment-only sync on textStyle"
-      ).toBeFalsy();
-    });
-  });
-
-  /**
-   * Same seed as "bold + fontFamily" above, but `textStyle` only has
-   * `fontFamily` — no Color / FontSize / BackgroundColor null attrs.
-   * Comment-only sync keeps the anchor.
-   */
-  describe("with FontFamily only", () => {
-    test.override("seedContent", styledInlineSeedContent);
-    test.override("extensions", async ({ syncedProvider }) => [
-      StarterKit.configure({ undoRedo: false, trailingNode: false }),
-      TextStyle,
-      FontFamily,
-      Collaboration.configure({
-        provider: syncedProvider,
-        document: syncedProvider.document,
-      }),
-      CommentsKit.configure({
-        provider: syncedProvider,
-        deleteUnreferencedThreads: false,
-        useLegacyWrapping: false,
-      }),
-    ]);
-
-    test("comment-only user keeps thread anchor after sync", async ({
-      editor,
-      provider,
-    }) => {
-      const { threadId } = await createThreadAtSelection(
-        editor,
-        selectStyledInline
-      );
-      await flushChanges(provider);
-      await expectThreadExistsInDocument(editor, threadId);
-    });
-  });
-
-  /**
-   * Documents a client-schema mismatch: TextStyle alone cannot represent
-   * fontFamily attrs, so y-prosemirror reconciliation during sync drops the
-   * comment-only user's inlineThread mark.
-   */
-  describe("without FontFamily extension", () => {
-    test.override("seedContent", styledInlineSeedContent);
-    test.override("extensions", async ({ syncedProvider }) => [
-      StarterKit.configure({ undoRedo: false, trailingNode: false }),
-      TextStyle,
-      Collaboration.configure({
-        provider: syncedProvider,
-        document: syncedProvider.document,
-      }),
-      CommentsKit.configure({
-        provider: syncedProvider,
-        deleteUnreferencedThreads: false,
-        useLegacyWrapping: false,
-      }),
-    ]);
-
-    test("comment-only user loses thread anchor after sync on styled text", async ({
-      editor,
-      provider,
-      annotate,
-    }) => {
-      const { threadId } = await createThreadAtSelection(
-        editor,
-        selectStyledInline
-      );
-
-      expect(
-        threadExistsInDocument(editor, threadId),
-        "Thread should exist locally before sync"
-      ).toBeTruthy();
-
-      await flushChanges(provider);
-      const after = editor.getJSON();
-
-      await annotate("content after sync without FontFamily", {
-        body: JSON.stringify(after, null, 2),
-        contentType: "application/json",
-      });
-
-      expect(
-        threadExistsInDocument(editor, threadId),
-        "Thread anchor should be lost after sync when FontFamily is missing"
-      ).toBeFalsy();
     });
   });
 });
