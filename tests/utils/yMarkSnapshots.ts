@@ -6,12 +6,11 @@ export interface YTextSegment {
   attributes: Record<string, unknown>;
 }
 
-export function yTextSegments(
-  ydoc: Y.Doc,
-  field = "default"
-): YTextSegment[] {
+export function yTextSegments(ydoc: Y.Doc, field = "default"): YTextSegment[] {
   const segments: YTextSegment[] = [];
-  const stack: Array<Y.XmlFragment | Y.XmlElement> = [ydoc.getXmlFragment(field)];
+  const stack: Array<Y.XmlFragment | Y.XmlElement> = [
+    ydoc.getXmlFragment(field),
+  ];
 
   while (stack.length > 0) {
     const node = stack.pop()!;

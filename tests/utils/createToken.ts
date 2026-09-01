@@ -15,7 +15,7 @@ export type TiptapToken = string & { __brand: "Token" };
  */
 export function createToken(
   claims: TiptapClaims,
-  secret = process.env.TIPTAP_JWT_SECRET ?? DEFAULT_SECRET
+  secret = process.env.TIPTAP_JWT_SECRET ?? DEFAULT_SECRET,
 ): TiptapToken {
   const now = Math.floor(Date.now() / 1000);
   const payload: TiptapClaims = {

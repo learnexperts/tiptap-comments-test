@@ -36,27 +36,27 @@ type DocWithTransaction = Y.Doc & {
  */
 export function canonicalizeTextStyleAttrs(
   attrs: Record<string, unknown>,
-  keys: string[]
+  keys: string[],
 ): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(attrs)
       .filter(([key]) => keys.includes(key))
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => left.localeCompare(right)),
   );
 }
 
 /** Keys with values y-prosemirror should persist on the PM→Y path. */
 export function textStyleWritebackKeys(
-  attrs: Record<string, unknown>
+  attrs: Record<string, unknown>,
 ): string[] {
   return Object.keys(attrs).filter(
-    (key) => attrs[key] != null && attrs[key] !== ""
+    (key) => attrs[key] != null && attrs[key] !== "",
   );
 }
 
 /** Sparse attrs for marks already on the document (pre-writeback). */
 export function canonicalTextStyleAttrsForWriteback(
-  attrs: Record<string, unknown>
+  attrs: Record<string, unknown>,
 ): Record<string, unknown> {
   return canonicalizeTextStyleAttrs(attrs, textStyleWritebackKeys(attrs));
 }
@@ -74,7 +74,7 @@ export function patchTextStyleMarkCreate(markType: MarkType): void {
     const mark = originalCreate(attrs);
     return new Mark(
       markType,
-      canonicalizeTextStyleAttrs(mark.attrs as Record<string, unknown>, keys)
+      canonicalizeTextStyleAttrs(mark.attrs as Record<string, unknown>, keys),
     );
   };
 
@@ -105,7 +105,7 @@ export function patchYTextApplyDelta(): void {
   proto.applyDelta = function applyDelta(
     this: Y.Text,
     delta: YTextDeltaOp[],
-    options?: { sanitize?: boolean }
+    options?: { sanitize?: boolean },
   ) {
     const origin = transactionOrigin(this.doc);
     const nextDelta =
@@ -120,7 +120,7 @@ export function patchYTextApplyDelta(): void {
 
 export function stripUnchangedRetainAttributes(
   ytext: Y.Text,
-  delta: YTextDeltaOp[]
+  delta: YTextDeltaOp[],
 ): YTextDeltaOp[] {
   if (!isRetainOnlyDelta(delta)) {
     return delta;
@@ -154,7 +154,7 @@ export function stripUnchangedRetainAttributes(
       pushRetain(
         out,
         chunk,
-        Object.keys(nextAttrs).length > 0 ? nextAttrs : undefined
+        Object.keys(nextAttrs).length > 0 ? nextAttrs : undefined,
       );
       index += chunk;
       remaining -= chunk;
@@ -253,7 +253,7 @@ export const CollabWriteback = Extension.create({
 
 function textStyleAttrsEqual(
   left: Record<string, unknown>,
-  right: Record<string, unknown>
+  right: Record<string, unknown>,
 ): boolean {
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
@@ -261,7 +261,7 @@ function textStyleAttrsEqual(
     return false;
   }
   return leftKeys.every(
-    (key, index) => key === rightKeys[index] && left[key] === right[key]
+    (key, index) => key === rightKeys[index] && left[key] === right[key],
   );
 }
 
@@ -276,19 +276,20 @@ function transactionOrigin(ydoc: Y.Doc | null): unknown {
 function isRetainOnlyDelta(delta: YTextDeltaOp[]): boolean {
   return delta.every(
     (op) =>
-      op.retain != null && op.insert === undefined && op.delete === undefined
+      op.retain != null && op.insert === undefined && op.delete === undefined,
   );
 }
 
 function peekYSegment(
   segments: YTextDeltaOp[],
-  index: number
+  index: number,
 ): { attributes: Record<string, unknown>; length: number } {
   let offset = 0;
 
   for (const segment of segments) {
     const insert = segment.insert;
-    const size = typeof insert === "string" ? insert.length : insert == null ? 0 : 1;
+    const size =
+      typeof insert === "string" ? insert.length : insert == null ? 0 : 1;
     if (index < offset + size) {
       return {
         attributes: segment.attributes ?? {},
@@ -304,7 +305,7 @@ function peekYSegment(
 function attributeNeedsApply(
   current: Record<string, unknown>,
   key: string,
-  value: unknown
+  value: unknown,
 ): boolean {
   if (value == null) {
     return current[key] != null;
@@ -345,7 +346,7 @@ function yjsEqualAttrs(left: unknown, right: unknown): boolean {
 function pushRetain(
   out: YTextDeltaOp[],
   length: number,
-  attributes?: Record<string, unknown>
+  attributes?: Record<string, unknown>,
 ): void {
   if (length <= 0) {
     return;
@@ -373,7 +374,7 @@ function pushRetain(
 
 function retainAttrsEqual(
   left: Record<string, unknown> | undefined,
-  right: Record<string, unknown> | undefined
+  right: Record<string, unknown> | undefined,
 ): boolean {
   if (left === right) {
     return true;

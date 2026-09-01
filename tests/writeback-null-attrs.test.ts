@@ -73,9 +73,7 @@ const seedContent: JSONContent = {
         {
           type: "text",
           text: HIGHLIGHTED,
-          marks: [
-            { type: "textStyle", attrs: { backgroundColor: "#E73E3E" } },
-          ],
+          marks: [{ type: "textStyle", attrs: { backgroundColor: "#E73E3E" } }],
         },
         { type: "text", text: " after" },
       ],

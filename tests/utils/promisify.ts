@@ -1,42 +1,42 @@
 interface Unsubscribe {
-  (): void
+  (): void;
 }
 
 interface Callback<T> {
-  (value: T): void
+  (value: T): void;
 }
 
 interface Subscribe<T> {
-  (callback: Callback<T>): Unsubscribe
+  (callback: Callback<T>): Unsubscribe;
 }
 
 export function promisify<T>(
   subscribe: Subscribe<T>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
-      reject(signal.reason)
-      return
+      reject(signal.reason);
+      return;
     }
 
     const unsubscribe = subscribe((value) => {
-      cleanup()
-      resolve(value)
-    })
+      cleanup();
+      resolve(value);
+    });
 
     function onAbort() {
-      cleanup()
-      reject(signal!.reason)
+      cleanup();
+      reject(signal!.reason);
     }
 
     function cleanup() {
-      unsubscribe()
-      signal?.removeEventListener("abort", onAbort)
+      unsubscribe();
+      signal?.removeEventListener("abort", onAbort);
     }
 
-    signal?.addEventListener("abort", onAbort, { once: true })
-  })
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
-export default promisify
+export default promisify;

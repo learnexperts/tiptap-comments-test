@@ -15,13 +15,13 @@ Element.prototype.getBoundingClientRect = function getBoundingClientRect() {
     right: 800,
     bottom: 600,
     toJSON() {
-      return {}
+      return {};
     },
-  }
-}
+  };
+};
 
 global.ResizeObserver = class ResizeObserver {
   observe() {}
   unobserve() {}
   disconnect() {}
-}
+};

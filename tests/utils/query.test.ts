@@ -14,7 +14,9 @@ afterEach(() => {
 function docOf(...content: JSONContent[]): Editor {
   const editor = new Editor({
     content: { type: "doc", content },
-    extensions: [StarterKit.configure({ undoRedo: false, trailingNode: false })],
+    extensions: [
+      StarterKit.configure({ undoRedo: false, trailingNode: false }),
+    ],
   });
 
   editors.push(editor);
@@ -34,7 +36,11 @@ describe("query", () => {
     // <p>[before] [target] [after]</p>
     const editor = () =>
       docOf(
-        p(text("[before] "), text("[target]", [{ type: "bold" }]), text(" [after]")),
+        p(
+          text("[before] "),
+          text("[target]", [{ type: "bold" }]),
+          text(" [after]"),
+        ),
       );
 
     test("finds a text node by its exact content", () => {
@@ -72,10 +78,10 @@ describe("query", () => {
 
   describe("given text nested inside a blockquote", () => {
     const editor = () =>
-      docOf(
-        p(text("outer")),
-        { type: "blockquote", content: [p(text("inner"))] },
-      );
+      docOf(p(text("outer")), {
+        type: "blockquote",
+        content: [p(text("inner"))],
+      });
 
     test("descends into nested blocks", () => {
       const match = query(editor().$doc, { nodeType: "text", text: "inner" });

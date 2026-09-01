@@ -24,4 +24,3 @@ export function commentClaims({
     commentDocumentNames: [documentName],
   };
 }
-

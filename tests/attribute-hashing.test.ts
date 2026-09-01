@@ -1,4 +1,10 @@
-import { Editor, Mark, getSchema, type Extensions, type JSONContent } from "@tiptap/core";
+import {
+  Editor,
+  Mark,
+  getSchema,
+  type Extensions,
+  type JSONContent,
+} from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import StarterKit from "@tiptap/starter-kit";
 import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
@@ -60,7 +66,10 @@ const exclusiveMark = Mark.create({
 });
 
 /** Two clients whose schemas differ only by one optional attribute. */
-const narrowClient: Extensions = [starterKit, overlappingMark({ id: { default: null } })];
+const narrowClient: Extensions = [
+  starterKit,
+  overlappingMark({ id: { default: null } }),
+];
 const wideClient: Extensions = [
   starterKit,
   overlappingMark({ id: { default: null }, note: { default: null } }),
@@ -75,7 +84,11 @@ function seedContent(markName: string): JSONContent {
       {
         type: "paragraph",
         content: [
-          { type: "text", text: MARKED, marks: [{ type: markName, attrs: { id: "m1" } }] },
+          {
+            type: "text",
+            text: MARKED,
+            marks: [{ type: markName, attrs: { id: "m1" } }],
+          },
           { type: "text", text: " and some text far away" },
         ],
       },
@@ -91,7 +104,9 @@ afterEach(() => {
 
 /** The Yjs attribute keys on the marked run. */
 function markKeys(ydoc: Y.Doc): string[] {
-  const segment = yTextSegments(ydoc).find((s) => String(s.text).includes(MARKED));
+  const segment = yTextSegments(ydoc).find((s) =>
+    String(s.text).includes(MARKED),
+  );
   return Object.keys(segment?.attributes ?? {});
 }
 
@@ -105,7 +120,10 @@ function attach(client: Extensions, ydoc: Y.Doc) {
 
   const editor = new Editor({
     element,
-    extensions: [...client, Collaboration.configure({ document: ydoc, field: FIELD })],
+    extensions: [
+      ...client,
+      Collaboration.configure({ document: ydoc, field: FIELD }),
+    ],
   });
 
   teardown.push(() => {
@@ -145,9 +163,9 @@ describe("y-prosemirror keys overlapping marks by a hash of their JSON", () => {
     const [originalKey] = markKeys(ydoc);
 
     const editor = attach(wideClient, ydoc);
-    expect(markKeys(ydoc), "attaching alone must not rewrite anything").toEqual([
-      originalKey,
-    ]);
+    expect(markKeys(ydoc), "attaching alone must not rewrite anything").toEqual(
+      [originalKey],
+    );
 
     // Type a character at the very end of the paragraph, nowhere near the
     // marked run and touching none of its attributes.

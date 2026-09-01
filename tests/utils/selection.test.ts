@@ -20,7 +20,9 @@ afterEach(() => {
 function docOf(...content: JSONContent[]): Editor {
   const editor = new Editor({
     content: { type: "doc", content },
-    extensions: [StarterKit.configure({ undoRedo: false, trailingNode: false })],
+    extensions: [
+      StarterKit.configure({ undoRedo: false, trailingNode: false }),
+    ],
   });
 
   editors.push(editor);
@@ -46,7 +48,9 @@ const threeRuns = () =>
 
 describe("text node merging", () => {
   test("adjacent runs with identical marks collapse into one node", () => {
-    const found = docOf(p(text("[before] "), text("[target]"), text(" [after]")));
+    const found = docOf(
+      p(text("[before] "), text("[target]"), text(" [after]")),
+    );
     const runs = [...queryAll(found.$doc, (node) => node.isText)];
 
     expect(runs).toHaveLength(1);

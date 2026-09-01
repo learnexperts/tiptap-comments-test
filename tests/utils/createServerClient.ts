@@ -6,7 +6,7 @@ export interface ServerClientOptions {
 export interface ServerClient {
   createDocument: (
     name: string,
-    content: Record<string, unknown>
+    content: Record<string, unknown>,
   ) => Promise<void>;
   deleteDocument: (documentName: string) => Promise<void>;
 }
@@ -22,7 +22,7 @@ export function createServerClient(options: ServerClientOptions): ServerClient {
   /** Create a new document with the given name and content. */
   async function createDocument(
     name: string,
-    content: Record<string, unknown>
+    content: Record<string, unknown>,
   ) {
     const response = await fetch(
       `${baseUrl}/api/documents/${encodeURIComponent(name)}?format=json`,
@@ -32,19 +32,15 @@ export function createServerClient(options: ServerClientOptions): ServerClient {
         },
         method: "POST",
         body: JSON.stringify(content),
-      }
+      },
     );
 
     if (!response.ok) {
       throw new Error(
-        `Failed to create document: ${response.status} ${response.statusText}`
+        `Failed to create document: ${response.status} ${response.statusText}`,
       );
     }
   }
-
-
-
-
 
   async function deleteDocument(documentName: string) {
     const response = await fetch(
@@ -52,12 +48,12 @@ export function createServerClient(options: ServerClientOptions): ServerClient {
       {
         headers: defaultHeaders,
         method: "DELETE",
-      }
+      },
     );
 
     if (!response.ok) {
       throw new Error(
-        `Failed to delete document: ${response.status} ${response.statusText}`
+        `Failed to delete document: ${response.status} ${response.statusText}`,
       );
     }
   }

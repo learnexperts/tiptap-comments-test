@@ -67,7 +67,7 @@ function targetAnchor(editor: Editor): number {
   const run = queryOrFail(
     editor.$doc,
     (node) => node.isText && !!node.text?.includes(TARGET),
-    `No text run containing ${TARGET}`
+    `No text run containing ${TARGET}`,
   );
 
   return nodeRange(run).from + run.node.text!.indexOf(TARGET);
@@ -94,7 +94,7 @@ function selectTarget(
 
       return TextSelection.between(
         offsetCursorPosition($anchor, from),
-        offsetCursorPosition($anchor, to)
+        offsetCursorPosition($anchor, to),
       );
     });
   };
@@ -104,7 +104,7 @@ const planBlockSelection: SelectionScenario["plan"] = () => [
   (editor) =>
     asNodeSelection(
       editor.state.doc,
-      queryOrFail(editor.$doc, { nodeType: "paragraph" })
+      queryOrFail(editor.$doc, { nodeType: "paragraph" }),
     ),
 ];
 
@@ -167,7 +167,7 @@ const cases: CommentCase[] = [
  */
 export function describeCommentMatrix(
   label: string,
-  getExtensions: (deps: ExtensionDeps) => Extensions
+  getExtensions: (deps: ExtensionDeps) => Extensions,
 ) {
   describe("setThread", () => {
     describe(label, () => {
@@ -187,13 +187,13 @@ export function describeCommentMatrix(
 
                 expect(
                   new Set(threadIds).size,
-                  "thread ids should be distinct"
+                  "thread ids should be distinct",
                 ).toBe(selections.length);
 
                 for (const threadId of threadIds) {
                   expect(
                     threadExistsInDocument(editor, threadId),
-                    `Thread ${threadId} was not anchored in the document`
+                    `Thread ${threadId} was not anchored in the document`,
                   ).toBe(true);
                 }
               });
@@ -208,7 +208,7 @@ export function describeCommentMatrix(
                 for (const threadId of threadIds) {
                   expect(
                     threadExistsInDocument(editor, threadId),
-                    `Thread ${threadId} was not anchored before sync`
+                    `Thread ${threadId} was not anchored before sync`,
                   ).toBe(true);
                 }
 
@@ -222,13 +222,13 @@ export function describeCommentMatrix(
                 for (const threadId of threadIds) {
                   expect(
                     threadExistsInDocument(editor, threadId),
-                    `Thread ${threadId} lost its anchor during sync`
+                    `Thread ${threadId} lost its anchor during sync`,
                   ).toBe(true);
                 }
               });
-            }
+            },
           );
-        }
+        },
       );
     });
   });

@@ -16,7 +16,7 @@ const defaults = {
  */
 export function waitForSync(
   provider: TiptapCollabProvider,
-  options?: WaitForSyncOptions
+  options?: WaitForSyncOptions,
 ): Promise<void> {
   const { timeout } = { ...defaults, ...options };
 

@@ -21,7 +21,7 @@ interface FlushChangesOptions {
  */
 export async function waitUntilFlushed(
   provider: TiptapCollabProvider,
-  options?: FlushChangesOptions
+  options?: FlushChangesOptions,
 ): Promise<void> {
   const timeout = options?.timeout ?? 10_000;
   const debounceMs = options?.debounceMs ?? 400;
@@ -47,7 +47,7 @@ export async function waitUntilFlushed(
         }
         return quietMs >= stuckQuietMs;
       },
-      { timeout, interval: 50 }
+      { timeout, interval: 50 },
     );
   } finally {
     ydoc.off("update", onUpdate);

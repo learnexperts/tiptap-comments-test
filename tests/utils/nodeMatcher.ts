@@ -33,7 +33,7 @@ export function matchNodeType(nodeType: string): Predicate {
 export function matchAttributes(attributes: Record<string, any>): Predicate {
   return (node) =>
     Object.entries(attributes).every(
-      ([key, value]) => node.attrs[key] === value
+      ([key, value]) => node.attrs[key] === value,
     );
 }
 
