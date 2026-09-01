@@ -30,6 +30,15 @@ import { yTextSegments } from "./utils/yMarkSnapshots";
  * On a comment-only connection the server rejects that write, and the thread
  * anchor is dropped with it. That final step needs the integration test in
  * `tests/comment.test.ts`; everything leading up to it is shown here.
+ *
+ * The third test asserts the behaviour we expect and currently fails. The
+ * fourth makes the identical assertion with our stopgap applied, and passes —
+ * the pair is the whole argument in two tests.
+ *
+ * The underlying cause is that y-prosemirror compares structured attribute
+ * values by shape rather than by meaning — see "Root cause" in the README. The
+ * densified bag below is one way to produce a shape difference; reordering keys
+ * or removing a field would do the same.
  */
 
 const FIELD = "default";
@@ -144,19 +153,18 @@ describe("comment-only writeback rewrites textStyle attrs", () => {
     expect(storedTextStyle(ydoc)).toEqual([{ backgroundColor: "#E73E3E" }]);
   });
 
-  test("setting an inline thread writes null attrs the server never stored", () => {
+  test("setting an inline thread leaves the stored attrs alone", () => {
     const ydoc = seedAsServerWould();
 
     setThreadOnHighlightedRun(attachClient(ydoc));
 
-    expect(storedTextStyle(ydoc)).toEqual([
-      {
-        fontFamily: null,
-        fontSize: null,
-        color: null,
-        backgroundColor: "#E73E3E",
-      },
-    ]);
+    // Adding a comment is not a styling change. Today this writes
+    // `fontFamily: null, fontSize: null, color: null` alongside the value the
+    // server stored — a `textStyle` edit the user never made.
+    expect(
+      storedTextStyle(ydoc),
+      "adding a comment must not rewrite textStyle",
+    ).toEqual([{ backgroundColor: "#E73E3E" }]);
   });
 
   test("CollabWriteback keeps the stored attrs intact", () => {
