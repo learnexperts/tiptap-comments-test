@@ -1,4 +1,7 @@
-export * from "./canonicalizeTextStyleAttrs";
+export * from "./canonicalizeAttrOrder";
+export * from "./collabWriteback";
+export { CollabWriteback as CanonicalizeTextStyleAttrs } from "./collabWriteback";
+export { CollabWriteback as SurgicalYTextWriteback } from "./collabWriteback";
 export * from "./compactTextStyleYAttrs";
 export * from "./fixtures";
 export * from "./reproFacetMark";

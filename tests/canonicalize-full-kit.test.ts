@@ -20,16 +20,19 @@ import { FontSize } from "@tiptap/extension-text-style/font-size";
 import StarterKit from "@tiptap/starter-kit";
 import { assert, vi } from "vitest";
 import { describe, expect, test } from "~/fixtures";
-import { CanonicalizeTextStyleAttrs } from "~/fixtures/editor";
+import { CollabWriteback } from "~/fixtures/editor/collabWriteback";
 import {
   markAttributeValues,
   textStyleValuesEqual,
   yDocFromEditor,
   yTextSegments,
 } from "~/fixtures/editor/yMarkSnapshots";
+import { queryOrFail } from "~/lib/query";
+import { nodeRange } from "~/lib/selection";
+import { waitUntilFlushed } from "./utils/flushChanges";
 
 /**
- * Comment-only sync with the full textStyle kit + CanonicalizeTextStyleAttrs.
+ * Comment-only sync with the full textStyle kit + CollabWriteback.
  * Matrix of attr shapes (single / multi) × selection (exact / overlap).
  */
 type SelectionKind =
@@ -64,11 +67,13 @@ const fullKitCanonicalizeExtensions = ({
   Color,
   BackgroundColor,
   //SparseTextStyleDefaults,
-  CanonicalizeTextStyleAttrs,
+  CollabWriteback,
+  //CanonicalizeAttrOrder,
   Collaboration.configure({
     provider: syncedProvider,
     document: syncedProvider.document,
   }),
+  //CompactTextStyleYAttrs,
   CommentsKit.configure({
     provider: syncedProvider,
     deleteUnreferencedThreads: false,
@@ -131,26 +136,26 @@ function textStyleAttrsOnDoc(
 }
 
 const selectExact: Command = ({ editor, commands }) => {
-  const nodePos = findNodeOrFail(
+  const nodePos = queryOrFail(
     editor.$doc,
     (node) =>
       node.type.name === "text" &&
       node.marks.some((mark) => mark.type.name === "textStyle")
   );
-  return commands.setTextSelection(getTextRange(nodePos));
+  return commands.setTextSelection(nodeRange(nodePos));
 };
 
 const selectOverlap: Command = ({ editor, commands }) => {
-  const before = findNodeOrFail(
+  const before = queryOrFail(
     editor.$doc,
     (node) => node.type.name === "text" && node.text === "Before "
   );
-  const after = findNodeOrFail(
+  const after = queryOrFail(
     editor.$doc,
     (node) => node.type.name === "text" && node.text === " after"
   );
-  const from = getTextRange(before);
-  const to = getTextRange(after);
+  const from = nodeRange(before);
+  const to = nodeRange(after);
 
   return commands.setTextSelection({
     from: from.from + 1,
@@ -159,18 +164,18 @@ const selectOverlap: Command = ({ editor, commands }) => {
 };
 
 const selectLeadingPartialOverlap: Command = ({ editor, commands }) => {
-  const before = findNodeOrFail(
+  const before = queryOrFail(
     editor.$doc,
     (node) => node.type.name === "text" && node.text === "Before "
   );
-  const styled = findNodeOrFail(
+  const styled = queryOrFail(
     editor.$doc,
     (node) =>
       node.type.name === "text" &&
       node.marks.some((mark) => mark.type.name === "textStyle")
   );
-  const beforeRange = getTextRange(before);
-  const styledRange = getTextRange(styled);
+  const beforeRange = nodeRange(before);
+  const styledRange = nodeRange(styled);
   const styledLength = styled.node.text?.length ?? 0;
 
   return commands.setTextSelection({
@@ -180,18 +185,18 @@ const selectLeadingPartialOverlap: Command = ({ editor, commands }) => {
 };
 
 const selectTrailingPartialOverlap: Command = ({ editor, commands }) => {
-  const styled = findNodeOrFail(
+  const styled = queryOrFail(
     editor.$doc,
     (node) =>
       node.type.name === "text" &&
       node.marks.some((mark) => mark.type.name === "textStyle")
   );
-  const after = findNodeOrFail(
+  const after = queryOrFail(
     editor.$doc,
     (node) => node.type.name === "text" && node.text === " after"
   );
-  const styledRange = getTextRange(styled);
-  const afterRange = getTextRange(after);
+  const styledRange = nodeRange(styled);
+  const afterRange = nodeRange(after);
   const styledLength = styled.node.text?.length ?? 0;
 
   return commands.setTextSelection({
@@ -212,6 +217,48 @@ function selectContentForKind(selection: SelectionKind): Command {
   }
   return selectTrailingPartialOverlap;
 }
+
+/** "Before styled after" — styled run is [7, 13). */
+const PARAGRAPH_TEXT = "Before styled after";
+const STYLED_START = "Before ".length;
+const STYLED_END = STYLED_START + "styled".length;
+const STYLED_MID = STYLED_START + Math.ceil("styled".length / 2);
+
+/**
+ * Absolute offsets from the start of paragraph text. Survives CommentsKit
+ * splitting the styled text node after the first thread.
+ */
+function selectParagraphOffsets(start: number, end: number): Command {
+  return ({ editor, commands }) => {
+    const paragraph = queryOrFail(
+      editor.$doc,
+      (node) => node.type.name === "paragraph"
+    );
+
+    return commands.setTextSelection({
+      from: paragraph.pos + 1 + start,
+      to: paragraph.pos + 1 + end,
+    });
+  };
+}
+
+/** "efore sty" — unstyled into first half of highlight; disjoint from trailing. */
+const selectDisjointLeading = selectParagraphOffsets(1, STYLED_MID);
+
+/** "led afte" — second half of highlight into unstyled; disjoint from leading. */
+const selectDisjointTrailing = selectParagraphOffsets(
+  STYLED_MID,
+  PARAGRAPH_TEXT.length - 1
+);
+
+/** "efore styl" — leading partial that covers most of the styled run. */
+const selectNestedLeading = selectParagraphOffsets(1, STYLED_END - 1);
+
+/** "tyled afte" — trailing partial that overlaps `selectNestedLeading` on "tyl". */
+const selectNestedTrailing = selectParagraphOffsets(
+  STYLED_START + 2,
+  PARAGRAPH_TEXT.length - 1
+);
 
 const cases: CanonicalizeCase[] = [
   {
@@ -380,7 +427,7 @@ const cases: CanonicalizeCase[] = [
   },
 ];
 
-describe("canonicalizeTextStyleAttrs + full kit", () => {
+describe("collabWriteback + full kit", () => {
   describe("comment-only user", () => {
     describe.for(cases)(
       "$selection selection: $label",
@@ -422,7 +469,7 @@ describe("canonicalizeTextStyleAttrs + full kit", () => {
             selectContent
           );
 
-          await flushChanges(provider);
+          await waitUntilFlushed(provider);
 
           await expectThreadExistsInDocument(editor, threadId);
         });
@@ -476,7 +523,7 @@ describe("canonicalizeTextStyleAttrs + full kit", () => {
           const afterLocal = yTextSegments(ydoc);
           const yStyleAfterLocal = markAttributeValues(afterLocal, "textStyle");
 
-          await flushChanges(provider);
+          await waitUntilFlushed(provider);
           const after = editor.getJSON();
           const yStyleAfterSync = markAttributeValues(
             yTextSegments(ydoc),
@@ -509,6 +556,92 @@ describe("canonicalizeTextStyleAttrs + full kit", () => {
         });
       }
     );
+
+    const twoThreadSeed = styledSeed({ backgroundColor: "#E73E3E" });
+
+    describe("two comment-only threads on the same styled node", () => {
+      test.override("seedContent", twoThreadSeed);
+      test.override("extensions", fullKitCanonicalizeExtensions);
+
+      describe("overlapping styled text but not each other", () => {
+        test("creates both threads locally", async ({ editor }) => {
+          const { firstThreadId, secondThreadId } =
+            await createTwoThreadsAtSelections(
+              editor,
+              selectDisjointLeading,
+              selectDisjointTrailing
+            );
+
+          expect(firstThreadId).not.toBe(secondThreadId);
+          await expectThreadExistsInDocument(editor, firstThreadId);
+          await expectThreadExistsInDocument(editor, secondThreadId);
+        });
+
+        test("keeps both thread anchors after sync", async ({
+          editor,
+          provider,
+          annotate,
+        }) => {
+          const { firstThreadId, secondThreadId } =
+            await createTwoThreadsAtSelections(
+              editor,
+              selectDisjointLeading,
+              selectDisjointTrailing
+            );
+
+          await waitUntilFlushed(provider);
+
+          await annotate(
+            "two disjoint threads overlapping styled text after sync",
+            {
+              body: JSON.stringify(editor.getJSON(), null, 2),
+              contentType: "application/json",
+            }
+          );
+
+          await expectThreadExistsInDocument(editor, firstThreadId);
+          await expectThreadExistsInDocument(editor, secondThreadId);
+        });
+      });
+
+      describe("overlapping styled text and each other", () => {
+        test("creates both threads locally", async ({ editor }) => {
+          const { firstThreadId, secondThreadId } =
+            await createTwoThreadsAtSelections(
+              editor,
+              selectNestedLeading,
+              selectNestedTrailing
+            );
+
+          expect(firstThreadId).not.toBe(secondThreadId);
+          await expectThreadExistsInDocument(editor, firstThreadId);
+          await expectThreadExistsInDocument(editor, secondThreadId);
+        });
+
+        test("keeps both thread anchors after sync", async ({
+          editor,
+          provider,
+          annotate,
+        }) => {
+          const { firstThreadId, secondThreadId } =
+            await createTwoThreadsAtSelections(
+              editor,
+              selectNestedLeading,
+              selectNestedTrailing
+            );
+
+          await waitUntilFlushed(provider);
+
+          await annotate("two overlapping threads on styled text after sync", {
+            body: JSON.stringify(editor.getJSON(), null, 2),
+            contentType: "application/json",
+          });
+
+          await expectThreadExistsInDocument(editor, firstThreadId);
+          await expectThreadExistsInDocument(editor, secondThreadId);
+        });
+      });
+    });
   });
 });
 
@@ -538,6 +671,22 @@ const createThreadAtSelection = vi.defineHelper(
   }
 );
 
+const createTwoThreadsAtSelections = vi.defineHelper(
+  async function createTwoThreadsAtSelections(
+    editor: Editor,
+    firstSelect: Command,
+    secondSelect: Command
+  ) {
+    const first = await createThreadAtSelection(editor, firstSelect);
+    const second = await createThreadAtSelection(editor, secondSelect);
+
+    return {
+      firstThreadId: first.threadId,
+      secondThreadId: second.threadId,
+    };
+  }
+);
+
 const expectThreadExistsInDocument = vi.defineHelper(
   async function expectThreadExistsInDocument(
     editor: Editor,
@@ -549,55 +698,3 @@ const expectThreadExistsInDocument = vi.defineHelper(
     ).toBeTruthy();
   }
 );
-
-const flushChanges = vi.defineHelper(async function flushChanges(
-  provider: TiptapCollabProvider
-) {
-  provider.startSync();
-
-  await vi.waitUntil(() => !provider.hasUnsyncedChanges, {
-    timeout: 10_000,
-  });
-});
-
-function findNode(
-  root: NodePos,
-  predicate: (node: NodePos["node"], nodePos: NodePos) => boolean
-): NodePos | null {
-  for (const nodePos of walkNodes(root)) {
-    if (predicate(nodePos.node, nodePos)) {
-      return nodePos;
-    }
-  }
-
-  return null;
-}
-
-function findNodeOrFail(
-  root: NodePos,
-  predicate: (node: NodePos["node"], nodePos: NodePos) => boolean
-): NodePos {
-  const node = findNode(root, predicate);
-  if (!node) {
-    throw new Error("Node not found");
-  }
-  return node;
-}
-
-function* walkNodes(root: NodePos): Generator<NodePos> {
-  if (!root.children || root.children.length === 0) {
-    return;
-  }
-
-  for (const child of root.children) {
-    yield child;
-    yield* walkNodes(child);
-  }
-}
-
-function getTextRange(nodePos: NodePos): Range {
-  return {
-    from: nodePos.pos - 1,
-    to: nodePos.pos + nodePos.size - 1,
-  };
-}

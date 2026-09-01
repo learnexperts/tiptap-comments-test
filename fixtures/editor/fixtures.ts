@@ -13,14 +13,14 @@ import { FontSize } from "@tiptap/extension-text-style/font-size";
 import StarterKit from "@tiptap/starter-kit";
 import { type TestAPI } from "vitest";
 import Websocket from "ws";
-import { type TiptapToken } from "../user";
-import { CanonicalizeTextStyleAttrs } from "./canonicalizeTextStyleAttrs";
+import { type UserFixtures } from "../user";
+import { CollabWriteback } from "./collabWriteback";
+import { CompactTextStyleYAttrs } from "./compactTextStyleYAttrs";
 import { SparseTextStyleDefaults } from "./sparseTextStyleDefaults";
 import { waitForSync } from "./waitForSync";
 
-interface EditorDeps {
+interface EditorDeps extends UserFixtures {
   documentName: string;
-  token: TiptapToken;
   seed: void;
 }
 
@@ -33,10 +33,11 @@ export function withEditorFixtures<C extends EditorDeps>(test: TestAPI<C>) {
       editor: Editor;
     };
   }>({
-    async provider({ documentName, token, seed: _ }, use) {
+    async provider({ documentName, token, seed: _, claims }, use) {
       const provider = new TiptapCollabProvider({
         name: documentName,
         token,
+        //user: claims.sub,
         websocketProvider: new TiptapCollabProviderWebsocket({
           baseUrl: "ws://localhost:3030",
           WebSocketPolyfill: Websocket,
@@ -60,11 +61,12 @@ export function withEditorFixtures<C extends EditorDeps>(test: TestAPI<C>) {
         Color,
         BackgroundColor,
         SparseTextStyleDefaults,
-        CanonicalizeTextStyleAttrs,
+        CollabWriteback,
         Collaboration.configure({
           provider: syncedProvider,
           document: syncedProvider.document,
         }),
+        CompactTextStyleYAttrs,
         CommentsKit.configure({
           provider: syncedProvider,
           deleteUnreferencedThreads: false,

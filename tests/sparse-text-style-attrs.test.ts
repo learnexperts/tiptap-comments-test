@@ -15,8 +15,11 @@ import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
 import { afterEach, describe, expect, test } from "vitest";
 import * as Y from "yjs";
 import {
+  CompactTextStyleYAttrs,
   compactTextStyleAttrsInFragment,
+  isYProsemirrorWriteback,
   sparseAttrs,
+  ySyncPluginKey,
 } from "~/fixtures/editor/compactTextStyleYAttrs";
 import { StripNullTextStyleAttrs } from "~/fixtures/editor/stripNullTextStyleAttrs";
 import { SparseTextStyleDefaults } from "~/fixtures/editor/sparseTextStyleDefaults";
@@ -204,6 +207,93 @@ describe("sparse textStyle attrs (offline)", () => {
     compactTextStyleAttrsInFragment(ydoc.getXmlFragment(FIELD));
 
     expect(textStyleFromDelta(ydoc)).toEqual({ fontFamily: "Arial" });
+  });
+
+  test("isYProsemirrorWriteback matches ySyncPluginKey local transactions", () => {
+    const ydoc = new Y.Doc();
+    let writeback: Y.Transaction | undefined;
+    let plainLocal: Y.Transaction | undefined;
+
+    ydoc.on("afterTransaction", (transaction) => {
+      if (transaction.origin === ySyncPluginKey) {
+        writeback = transaction;
+        return;
+      }
+      if (transaction.origin == null) {
+        plainLocal = transaction;
+      }
+    });
+
+    ydoc.transact(() => {}, ySyncPluginKey);
+    ydoc.transact(() => {});
+
+    expect(writeback).toBeDefined();
+    expect(isYProsemirrorWriteback(writeback!)).toBe(true);
+    expect(plainLocal).toBeDefined();
+    expect(isYProsemirrorWriteback(plainLocal!)).toBe(false);
+  });
+
+  test("CompactTextStyleYAttrs compacts densified Y after ySyncPluginKey writeback", () => {
+    const ydoc = prosemirrorJSONToYDoc(
+      getSchema([...fullKit]),
+      styledSeed,
+      FIELD
+    );
+
+    densifyTextStyleOnDoc(ydoc);
+
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    const editor = new Editor({
+      element,
+      extensions: [
+        ...fullKit,
+        Collaboration.configure({ document: ydoc, field: FIELD }),
+        CompactTextStyleYAttrs,
+      ] as Extensions,
+    });
+    cleanups.push(() => {
+      editor.destroy();
+      element.remove();
+    });
+
+    ydoc.transact(() => {}, ySyncPluginKey);
+
+    expect(textStyleFromDelta(ydoc)).toEqual({ fontFamily: "Arial" });
+  });
+
+  test("CompactTextStyleYAttrs ignores non-ySync local transactions", () => {
+    const ydoc = prosemirrorJSONToYDoc(
+      getSchema([...fullKit]),
+      styledSeed,
+      FIELD
+    );
+
+    densifyTextStyleOnDoc(ydoc);
+
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    const editor = new Editor({
+      element,
+      extensions: [
+        ...fullKit,
+        Collaboration.configure({ document: ydoc, field: FIELD }),
+        CompactTextStyleYAttrs,
+      ] as Extensions,
+    });
+    cleanups.push(() => {
+      editor.destroy();
+      element.remove();
+    });
+
+    ydoc.transact(() => {});
+
+    expect(textStyleFromDelta(ydoc)).toEqual({
+      fontFamily: "Arial",
+      fontSize: null,
+      color: null,
+      backgroundColor: null,
+    });
   });
 
   test("SparseTextStyleDefaults keeps Y sparse after bind", () => {

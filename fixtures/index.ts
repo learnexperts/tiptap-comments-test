@@ -23,4 +23,4 @@ const it = test;
 
 export { describe, expect, it, test };
 
-type X = InferFixturesTypes<typeof test>;
+export type TestFixtures = InferFixturesTypes<typeof test>;

@@ -3,6 +3,13 @@ export interface ServerClientOptions {
   token: string;
 }
 
+export interface DocumentVersion {
+  version: number;
+  date?: number;
+  name?: string;
+  meta?: Record<string, unknown>;
+}
+
 export interface ServerClient {
   createDocument: (
     name: string,
@@ -11,6 +18,7 @@ export interface ServerClient {
   checkHealth: () => Promise<boolean>;
   getThread: (documentName: string, threadId: string) => Promise<any>;
   getDocument: (documentName: string) => Promise<any>;
+  getDocumentVersions: (documentName: string) => Promise<DocumentVersion[]>;
   deleteDocument: (documentName: string) => Promise<void>;
 }
 
@@ -96,6 +104,25 @@ export function createServerClient(options: ServerClientOptions): ServerClient {
     return response.json();
   }
 
+  async function getDocumentVersions(documentName: string) {
+    const response = await fetch(
+      `${baseUrl}/api/documents/${encodeURIComponent(
+        documentName
+      )}/versions`,
+      {
+        headers: defaultHeaders,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to get document versions: ${response.status} ${response.statusText}`
+      );
+    }
+
+    return response.json() as Promise<DocumentVersion[]>;
+  }
+
   async function deleteDocument(documentName: string) {
     const response = await fetch(
       `${baseUrl}/api/documents/${encodeURIComponent(documentName)}`,
@@ -117,6 +144,7 @@ export function createServerClient(options: ServerClientOptions): ServerClient {
     checkHealth,
     getThread,
     getDocument,
+    getDocumentVersions,
     deleteDocument,
   };
 }

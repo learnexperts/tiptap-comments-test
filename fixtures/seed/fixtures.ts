@@ -18,9 +18,10 @@ function withSeedFixtures<C extends SeedDeps>(baseTest: TestAPI<C>) {
     seed: [
       async ({ client, documentName, seedContent }, use) => {
         if (!seedContent) {
+          await use();
           return;
         }
-        await client.createDocument(documentName, seedContent);
+        await client.createDocument(documentName, ensureRootNode(seedContent));
         await use();
         await client.deleteDocument(documentName);
       },
@@ -33,3 +34,14 @@ function withSeedFixtures<C extends SeedDeps>(baseTest: TestAPI<C>) {
 }
 
 export { withSeedFixtures };
+
+function ensureRootNode(content: JSONContent): JSONContent {
+  if (content.type === "doc") {
+    return content;
+  }
+
+  return {
+    type: "doc",
+    content: [content],
+  };
+}

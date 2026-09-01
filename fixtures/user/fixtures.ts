@@ -3,11 +3,11 @@ import { type TestAPI } from "vitest";
 import { commentClaims, TiptapClaims } from "./claims";
 import { createToken, TiptapToken } from "./createToken";
 
-interface UserDeps {
+export interface UserDeps {
   documentName: string;
 }
 
-interface UserFixtures {
+export interface UserFixtures {
   claims: TiptapClaims;
   token: TiptapToken;
 }

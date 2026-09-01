@@ -26,7 +26,7 @@ Register **`SparseTextStyleDefaults`** after the full textStyle kit so unset att
 
 Exact and subset selections pass integration tests with this extension. Overlap selections on `backgroundColor` still lose the anchor: the server stores thread metadata (REST `getThread`) but the document JSON has no `inlineThread` mark after sync.
 
-Tests: `with full textStyle kit: *`, overlap describe, and `with FontFamily only` in `tests/comment.test.ts`. Offline: `tests/schema-mismatch.test.ts`, `tests/sparse-text-style-attrs.test.ts`.
+Tests: the curated matrix in `tests/comment.test.ts` and the permutations in `tests/probes/anchor-loss.probe.ts` — see [Test layout](#test-layout). Offline: `tests/schema-mismatch.test.ts`, `tests/sparse-text-style-attrs.test.ts`.
 
 ### Writable vs read-only
 
@@ -38,7 +38,7 @@ On **read-only + `commentDocumentNames`**, the client cannot persist that textSt
 
 Creating a block-level comment thread can crash the on-premises collab server's `beforeHandleMessage` hook with "Unexpected end of array", force-closing the WebSocket and losing the thread.
 
-The historical failing test is **"thread persists after sync"** under **"with 'block' selection"**.
+The historical failing test was **"thread persists after sync"** under **"with 'block' selection"**. That case now lives in the curated matrix as **`and 'block-level' content > and 'a node selection'`**, and as of the last run it **passes** — the crash does not reproduce against the current server image. The reproduction steps below are retained in case it resurfaces.
 
 ### Environment
 
@@ -103,6 +103,39 @@ The block-level comment thread should persist after sync, the same way inline co
 
 ---
 
+## Test layout
+
+Some tests are **expected to be red** — this repo is a reproduction, and the failures are the deliverable. The index below says which, so a new failure is distinguishable from a documented one.
+
+| File | Purpose | Runs in |
+|---|---|---|
+| `tests/comment.test.ts` | Curated matrix: 5 seed shapes × 4 selection scenarios, all on the **default** editor fixture | `pnpm test` |
+| `tests/probes/anchor-loss.probe.ts` | Historical extension permutations and the `ReproGlint`/`ReproFacet` probe marks | `pnpm test:probes` |
+| `tests/y-mark-equality.test.ts` | Compares Yjs mark attrs before/after a *local* `setThread`, separating client rewrite from server rejection | `pnpm test` |
+| `lib/*.test.ts` | Offline unit tests for `query`, `selection`, `positions` — no server needed | `pnpm test` |
+
+### Curated matrix
+
+Seeds: block-level, undecorated text, bolded text, text with a single style (`backgroundColor`), text with multiple styles (all four `textStyle` attrs). Selection scenarios, applied to the four text seeds: exact, partially overlapping (crossing one mark boundary), two threads on disjoint parts, two threads on overlapping parts.
+
+**32 of 34 pass.** The two red cells are deterministic:
+
+- `and 'text with multiple styles' content > and 'two threads on disjoint parts' > keeps the thread anchor after sync`
+- `and 'text with multiple styles' content > and 'two threads on overlapping parts' > keeps the thread anchor after sync`
+
+Both create two threads successfully, then lose one anchor during sync. The equivalent cases on a **single** style attribute pass, so the trigger is a multi-attribute `textStyle` mark combined with more than one thread.
+
+### Probes
+
+**50 of 54 pass.** Red:
+
+- `overlap/reproFacet-ff` and `overlap/reproFacet-bg` — the anchor is dropped for an overlap selection on an unrecognised mark. This is the documented behaviour that `tests/y-mark-equality.test.ts` asserts positively.
+- `exact/bold+ff/no-ff-ext` (both tests) — with `TextStyle` registered but none of `FontFamily`/`FontSize`/`Color`/`BackgroundColor`, the `textStyle` mark carries no attributes and is stripped when the seed is parsed, so the selection helper cannot find the run. The lookup failure *is* the finding.
+
+### Other known-red
+
+`tests/canonicalize-full-kit.test.ts` has two failures, both named `loses thread anchor after sync (densified Y still rewritten)`. These predate the test reorganization.
+
 ## Setup
 
 ### Prerequisites
@@ -159,6 +192,14 @@ In a separate terminal:
 # Integration (needs Docker collab server)
 pnpm test
 
-# Offline schema-mismatch (no server)
-pnpm exec vitest run tests/schema-mismatch.test.ts
+# Historical anchor-loss probes (needs Docker collab server)
+pnpm test:probes
+
+# Offline only — no server required
+pnpm exec vitest run lib/ tests/schema-mismatch.test.ts
+
+# Types
+pnpm typecheck
 ```
+
+See [Test layout](#test-layout) for which failures are expected.
