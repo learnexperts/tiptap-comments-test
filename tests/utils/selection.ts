@@ -1,27 +1,8 @@
 import { NodePos } from "@tiptap/core";
-import { Node, ResolvedPos } from "@tiptap/pm/model";
-import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
-import { offsetTextPosition } from "~/lib/positions";
+import { Node } from "@tiptap/pm/model";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 
 export { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
-
-export function asSelection(pos: Selection | ResolvedPos) {
-  if (pos instanceof Selection) {
-    return pos;
-  }
-  return Selection.near(pos);
-}
-
-export function offsetSelection(
-  selection: Selection | ResolvedPos,
-  offset: number,
-) {
-  selection = asSelection(selection);
-  return TextSelection.between(
-    offsetTextPosition(selection.$from, offset),
-    offsetTextPosition(selection.$to, offset),
-  );
-}
 
 /**
  * The document range a `NodePos` covers.

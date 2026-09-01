@@ -1,7 +1,6 @@
-import { threadExistsInDocument } from "@tiptap-pro/extension-comments";
 import type { Editor, EditorEvents } from "@tiptap/core";
-import { assert, expect, vi } from "vitest";
-import type { Selection } from "~/lib/selection";
+import { assert, vi } from "vitest";
+import type { Selection } from "./selection";
 
 export interface SelectionFactory {
   (editor: Editor): Selection;
@@ -53,12 +52,3 @@ export const createThreads = vi.defineHelper(async function createThreads(
 
   return threadIds;
 });
-
-export const expectThreadExistsInDocument = vi.defineHelper(
-  function expectThreadExistsInDocument(editor: Editor, threadId: string) {
-    expect(
-      threadExistsInDocument(editor, threadId),
-      `Thread ${threadId} does not exist in the document`,
-    ).toBe(true);
-  },
-);

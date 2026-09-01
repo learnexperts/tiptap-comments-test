@@ -6,7 +6,7 @@ import { withUserFixtures } from "./user";
 
 import type { InferFixturesTypes } from "@vitest/runner";
 import { test as baseTest, expect } from "vitest";
-import applyExtensions from "./utils/applyExtensions";
+import applyExtensions from "./applyExtensions";
 
 const wrappers = [
   withDocumentFixtures,

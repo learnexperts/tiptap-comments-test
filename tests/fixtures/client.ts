@@ -1,5 +1,5 @@
 import { TestAPI } from "vitest";
-import { createServerClient, type ServerClient } from "./createServerClient";
+import { createServerClient, type ServerClient } from "../utils/createServerClient";
 
 export interface ClientFixtures {
   client: ServerClient;

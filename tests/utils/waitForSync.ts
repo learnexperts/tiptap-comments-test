@@ -1,5 +1,5 @@
 import { TiptapCollabProvider } from "@tiptap-pro/provider";
-import { promisify } from "../utils/promisify";
+import { promisify } from "./promisify";
 
 type Milliseconds = number;
 

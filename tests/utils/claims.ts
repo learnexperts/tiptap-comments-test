@@ -25,14 +25,3 @@ export function commentClaims({
   };
 }
 
-export function editClaims({
-  documentName,
-  sub,
-}: CommentClaimsOptions): TiptapClaims {
-  return {
-    sub,
-    allowedDocumentNames: [documentName],
-    readonlyDocumentNames: [],
-    commentDocumentNames: [],
-  };
-}

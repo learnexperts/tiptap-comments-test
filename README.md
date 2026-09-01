@@ -8,25 +8,35 @@ There are **two separate failure modes**. Do not conflate them.
 
 Creating an inline comment on text that carries a `textStyle` mark loses the **document anchor** after sync. The thread exists locally before sync; after comment-only sync `inlineThread` is gone. Unstyled, bold, and italic text keep the anchor.
 
-This is **not** “empty styles” and **not** “missing FontFamily” in production. The live editor registers Color, FontSize, BackgroundColor, and FontFamily on `textStyle`, so unused attrs are stored as `null`. That full attr bag is enough.
+The trigger is **`null`-valued attrs**, not missing ones. A production editor registers Color, FontSize, BackgroundColor and FontFamily on `textStyle`, so a mark that sets only one of them stores the other three as `null` — and that is the case that loses its anchor. A mark with *every* attr set has no nulls and survives.
+
+Measured by the matrix (see [Test layout](#test-layout)):
 
 | Client schema | Seed | Anchor after comment-only sync |
 |---|---|---|
-| TextStyle + FontFamily only | bold + `fontFamily: Arial` | **kept** |
-| Full kit + `SparseTextStyleDefaults` | exact `textStyle` (color, font-size, highlight, font-family) | **kept** |
-| Full kit + `SparseTextStyleDefaults` | overlap selection onto `textStyle` | **lost** |
-| Full kit (no workaround) | any `textStyle` | **lost** |
-| TextStyle, no FontFamily | bold + `fontFamily: Arial` | **lost** (schema mismatch; Y still has `fontFamily`) |
+| Full kit, no workaround | `textStyle` with one attr set, three `null` | **lost** — all four selection scenarios |
+| Full kit, no workaround | `textStyle` with all four attrs set | kept |
+| Full kit, no workaround | unstyled, bold, or block-level | kept |
+| Full kit + `CollabWriteback` | every seed and selection in the matrix | **kept** |
 
-### Workaround (approach 2): sparse ProseMirror defaults
+### Where we think the fix belongs
 
-`StripNullTextStyleAttrs` (`appendTransaction`) alone does **not** fix writeback: `mark.create({ fontFamily })` still merges schema `default: null` from Color / FontSize / etc.
+We are not proposing a fix — the behaviour has two candidate causes and both sit deeper in the collab chain than a client extension can properly reach:
 
-Register **`SparseTextStyleDefaults`** after the full textStyle kit so unset attrs use `undefined` instead of `null`. y-prosemirror then writes sparse Y (`textStyle: { fontFamily: "Arial" }` only). See `fixtures/editor/sparseTextStyleDefaults.ts`.
+1. **The client emits a `textStyle` change nobody asked for.** Applying an `inlineThread` mark causes writeback to densify `textStyle` from the ProseMirror schema, writing `fontFamily: null, fontSize: null, color: null` over attributes the server never had.
+2. **The comment-only path then discards the whole update.** Rather than rejecting just the disallowed `textStyle` write, it drops the accompanying `inlineThread` mark too, and the anchor goes with it.
 
-Exact and subset selections pass integration tests with this extension. Overlap selections on `backgroundColor` still lose the anchor: the server stores thread metadata (REST `getThread`) but the document JSON has no `inlineThread` mark after sync.
+Fixing either would close the defect. `tests/writeback-null-attrs.test.ts` demonstrates (1) offline; `tests/comment.test.ts` shows the combined result against a real server.
 
-Tests: the curated matrix in `tests/comment.test.ts` and the permutations in `tests/probes/anchor-loss.probe.ts` — see [Test layout](#test-layout). Offline: `tests/schema-mismatch.test.ts`, `tests/sparse-text-style-attrs.test.ts`.
+### Our interim workaround (not a recommendation)
+
+`workaround/collabWriteback.ts` is what we run in production while this is open. **Do not treat it as a fix.** It patches `MarkType.create` and monkey-patches `Y.Text.prototype.applyDelta` from outside the library — acceptable as a stopgap we own, not as guidance for anyone else.
+
+Its value to this report is diagnostic. Suppressing the spurious `textStyle` write takes the matrix from 30/34 to **34/34**, which localises the defect to the writeback path described above. Two other candidate extensions were tried; one is redundant and one is harmful — see [What the workaround fixes](#what-the-workaround-fixes).
+
+An `appendTransaction` that strips nulls from the ProseMirror doc does **not** work on its own: `mark.create({ backgroundColor })` still merges schema `default: null` from Color / FontSize / FontFamily before writeback sees it.
+
+Tests: see [Test layout](#test-layout).
 
 ### Writable vs read-only
 
@@ -38,7 +48,7 @@ On **read-only + `commentDocumentNames`**, the client cannot persist that textSt
 
 Creating a block-level comment thread can crash the on-premises collab server's `beforeHandleMessage` hook with "Unexpected end of array", force-closing the WebSocket and losing the thread.
 
-The historical failing test was **"thread persists after sync"** under **"with 'block' selection"**. That case now lives in the curated matrix as **`and 'block-level' content > and 'a node selection'`**, and as of the last run it **passes** — the crash does not reproduce against the current server image. The reproduction steps below are retained in case it resurfaces.
+The historical failing test was **"thread persists after sync"** under **"with 'block' selection"**. That case now lives in the matrix as **`and 'block-level' content > and 'a node selection'`**, and as of the last run it **passes** — the crash does not reproduce against the current server image. The reproduction steps below are retained in case it resurfaces.
 
 ### Environment
 
@@ -66,7 +76,7 @@ The connection token places the document in `readonlyDocumentNames` and `comment
 }
 ```
 
-See [`fixtures/user/claims.ts`](fixtures/user/claims.ts) for the implementation.
+See [`tests/utils/claims.ts`](tests/utils/claims.ts) for the implementation.
 
 ### Steps to reproduce (block crash)
 
@@ -105,36 +115,50 @@ The block-level comment thread should persist after sync, the same way inline co
 
 ## Test layout
 
-Some tests are **expected to be red** — this repo is a reproduction, and the failures are the deliverable. The index below says which, so a new failure is distinguishable from a documented one.
+Four files. Each makes one claim. `pnpm test` is **expected to fail** — see [ADR 0001](docs/adr/0001-tests-are-a-bug-report.md) for why this directory is shaped the way it is.
 
-| File | Purpose | Runs in |
+| File | Claim | Needs Docker |
 |---|---|---|
-| `tests/comment.test.ts` | Curated matrix: 5 seed shapes × 4 selection scenarios, all on the **default** editor fixture | `pnpm test` |
-| `tests/probes/anchor-loss.probe.ts` | Historical extension permutations and the `ReproGlint`/`ReproFacet` probe marks | `pnpm test:probes` |
-| `tests/y-mark-equality.test.ts` | Compares Yjs mark attrs before/after a *local* `setThread`, separating client rewrite from server rejection | `pnpm test` |
-| `lib/*.test.ts` | Offline unit tests for `query`, `selection`, `positions` — no server needed | `pnpm test` |
+| `tests/writeback-null-attrs.test.ts` | **The mechanism.** Applying an `inlineThread` mark makes the client write `null` `textStyle` attrs into Yjs that the server never stored — and suppressing that write stops it. | no |
+| `tests/comment.test.ts` | **The bug.** On a comment-only connection, that write costs the thread anchor. Stock Tiptap, **30/34**. | yes |
+| `tests/probes/writeback-fix.probe.ts` | **The workaround.** The identical matrix with our stopgap applied, **34/34**. | yes |
+| `tests/utils/*.test.ts` | The selection helpers the matrix relies on place their ranges correctly. | no |
 
-### Curated matrix
+Start with the offline file — it needs no licence key and runs in a second:
 
-Seeds: block-level, undecorated text, bolded text, text with a single style (`backgroundColor`), text with multiple styles (all four `textStyle` attrs). Selection scenarios, applied to the four text seeds: exact, partially overlapping (crossing one mark boundary), two threads on disjoint parts, two threads on overlapping parts.
+```sh
+pnpm exec vitest run tests/writeback-null-attrs.test.ts
+```
 
-**32 of 34 pass.** The two red cells are deterministic:
+The suites are Vitest projects, so each has its own command: `pnpm test` (repro), `pnpm test:utils`, `pnpm test:probes`, `pnpm test:all`.
 
-- `and 'text with multiple styles' content > and 'two threads on disjoint parts' > keeps the thread anchor after sync`
-- `and 'text with multiple styles' content > and 'two threads on overlapping parts' > keeps the thread anchor after sync`
+### The matrix
 
-Both create two threads successfully, then lose one anchor during sync. The equivalent cases on a **single** style attribute pass, so the trigger is a multi-attribute `textStyle` mark combined with more than one thread.
+`tests/comment.test.ts` and the probe run one shared definition (`tests/utils/commentMatrix.ts`), so the only variable between them is the extension list.
 
-### Probes
+Five seeds — block-level, undecorated text, bolded text, text with a single style (`backgroundColor`), text with multiple styles (all four `textStyle` attrs). Four selection scenarios on the four text seeds — exact, partially overlapping (crossing one mark boundary), two threads on disjoint parts, two threads on overlapping parts. 17 cases, 34 tests.
 
-**50 of 54 pass.** Red:
+### What the workaround fixes
 
-- `overlap/reproFacet-ff` and `overlap/reproFacet-bg` — the anchor is dropped for an overlap selection on an unrecognised mark. This is the documented behaviour that `tests/y-mark-equality.test.ts` asserts positively.
-- `exact/bold+ff/no-ff-ext` (both tests) — with `TextStyle` registered but none of `FontFamily`/`FontSize`/`Color`/`BackgroundColor`, the `textStyle` mark carries no attributes and is stripped when the seed is parsed, so the selection helper cannot find the run. The lookup failure *is* the finding.
+| Seed | Stock | With `CollabWriteback` |
+|---|---|---|
+| block-level | pass | pass |
+| undecorated text | pass | pass |
+| bolded text | pass | pass |
+| **single style** (`backgroundColor`) | **fails all 4 scenarios** | pass |
+| multiple styles (all four attrs) | pass | pass |
 
-### Other known-red
+Stock is **30/34**; adding `CollabWriteback` alone is **34/34**. Both deterministic across repeated runs.
 
-`tests/canonicalize-full-kit.test.ts` has two failures, both named `loses thread anchor after sync (densified Y still rewritten)`. These predate the test reorganization.
+`CollabWriteback` on its own is sufficient. Measured against the same matrix:
+
+| Configuration | Result |
+|---|---|
+| `CollabWriteback` | 34/34 |
+| `CollabWriteback` + `SparseTextStyleDefaults` | 34/34 |
+| `CollabWriteback` + `CompactTextStyleYAttrs` | **32/34** |
+
+`SparseTextStyleDefaults` is redundant once `CollabWriteback` is applied. `CompactTextStyleYAttrs` is actively harmful: it breaks the two multi-thread cases on a four-attribute `textStyle` mark, which pass both without it and on stock. Neither extension is in the repo any more; both results are recorded here so the experiment need not be repeated.
 
 ## Setup
 
@@ -189,14 +213,17 @@ The server will be available at `localhost:3030`.
 In a separate terminal:
 
 ```sh
-# Integration (needs Docker collab server)
+# The report: the bug plus its mechanism (needs Docker for the bug)
 pnpm test
 
-# Historical anchor-loss probes (needs Docker collab server)
+# Same matrix with our stopgap applied (needs Docker collab server)
 pnpm test:probes
 
-# Offline only — no server required
-pnpm exec vitest run lib/ tests/schema-mismatch.test.ts
+# Helper unit tests — offline, no server, no licence key
+pnpm test:utils
+
+# Everything
+pnpm test:all
 
 # Types
 pnpm typecheck

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { type TestAPI } from "vitest";
-import { commentClaims, TiptapClaims } from "./claims";
-import { createToken, TiptapToken } from "./createToken";
+import { commentClaims, TiptapClaims } from "../utils/claims";
+import { createToken, TiptapToken } from "../utils/createToken";
 
 export interface UserDeps {
   documentName: string;
