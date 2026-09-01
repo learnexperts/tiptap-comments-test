@@ -61,6 +61,17 @@ export function canonicalTextStyleAttrsForWriteback(
   return canonicalizeTextStyleAttrs(attrs, textStyleWritebackKeys(attrs));
 }
 
+/**
+ * `Mark`'s constructor is `@internal` in prosemirror-model, so it is absent
+ * from the published types even though it exists at runtime. Rebuilding the
+ * mark directly is the only way to seat sparse attrs — `markType.create` is
+ * what densifies them through `computeAttrs` in the first place.
+ */
+const MarkCtor = Mark as unknown as new (
+  type: MarkType,
+  attrs: Record<string, unknown>,
+) => Mark;
+
 export function patchTextStyleMarkCreate(markType: MarkType): void {
   const patched = markType as MarkType & { [MARK_CREATE_PATCHED]?: boolean };
   if (patched[MARK_CREATE_PATCHED]) {
@@ -72,7 +83,7 @@ export function patchTextStyleMarkCreate(markType: MarkType): void {
   markType.create = (attrs = null) => {
     const keys = Object.keys(attrs ?? {});
     const mark = originalCreate(attrs);
-    return new Mark(
+    return new MarkCtor(
       markType,
       canonicalizeTextStyleAttrs(mark.attrs as Record<string, unknown>, keys),
     );
