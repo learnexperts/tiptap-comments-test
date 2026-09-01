@@ -53,6 +53,8 @@ LICENSE_KEY=<your-on-premises-license-key>
 pnpm install
 ```
 
+This also installs the git hooks (see [Git hooks](#git-hooks)).
+
 ## Running
 
 ### Start the collab server
@@ -83,6 +85,19 @@ pnpm test:all
 # Types
 pnpm typecheck
 ```
+
+## Git hooks
+
+[lefthook](https://lefthook.dev/) runs the checks that are supposed to be green. `pnpm install` installs the hooks; `pnpm exec lefthook uninstall` removes them.
+
+| Hook | Runs |
+|---|---|
+| `pre-commit` | `biome check --write` over the staged files, restaging anything it fixes |
+| `pre-push` | `pnpm typecheck` and `pnpm test:utils` |
+
+`pnpm test` is deliberately red ([ADR 0001](docs/adr/0001-tests-are-a-bug-report.md)), so no hook gates on it — a hook that did would block every push for as long as the defect is open. `pre-push` runs the offline `utils` suite instead, which needs neither Docker nor a licence key.
+
+Run a hook without committing with `pnpm exec lefthook run pre-commit`, or skip one for a single command with `LEFTHOOK=0 git commit ...`.
 
 ## Test layout
 

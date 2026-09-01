@@ -31,8 +31,14 @@
     "@vitest/runner": "^4.1.11",
     "@vitest/ui": "4.1.11",
     "jsdom": "^30.0.1",
+    "lefthook": "^2.1.12",
     "vitest": "^4.1.11",
     "ws": "^8.21.3",
     "yjs": "13.6.32"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "lefthook"
+    ]
   }
 }
