@@ -1,5 +1,5 @@
-import { NodePos } from "@tiptap/core";
-import { Node } from "@tiptap/pm/model";
+import type { NodePos } from "@tiptap/core";
+import type { Node } from "@tiptap/pm/model";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 
 export { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";

@@ -1,5 +1,5 @@
-import { stockExtensions } from "./utils/extensionSets";
 import { describeCommentMatrix } from "./utils/commentMatrix";
+import { stockExtensions } from "./utils/extensionSets";
 
 /**
  * The comment-only matrix on a plain Tiptap configuration — the full textStyle

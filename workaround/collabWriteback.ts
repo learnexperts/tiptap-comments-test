@@ -343,10 +343,7 @@ function yjsEqualAttrs(left: unknown, right: unknown): boolean {
 
   return leftKeys.every((key) => {
     const value = left[key];
-    if (
-      value === undefined &&
-      !Object.prototype.hasOwnProperty.call(right, key)
-    ) {
+    if (value === undefined && !Object.hasOwn(right, key)) {
       return false;
     }
 

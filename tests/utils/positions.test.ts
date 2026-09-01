@@ -1,5 +1,5 @@
-import { getSchema, JSONContent } from "@tiptap/core";
-import { Node } from "@tiptap/pm/model";
+import { getSchema, type JSONContent } from "@tiptap/core";
+import type { Node } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
 import { describe, expect, test } from "vitest";
 import { offsetCursorPosition, offsetTextPosition } from "./positions";

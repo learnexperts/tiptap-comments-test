@@ -1,5 +1,9 @@
+// biome-ignore-all lint/suspicious/noExplicitAny: variadic type-level plumbing.
+// `unknown` does not satisfy TestAPI's own `Record<string, any>` constraints, and
+// the reduce over a heterogeneous extension tuple has no expressible type.
+
 import type { InferFixturesTypes } from "@vitest/runner";
-import { type TestAPI } from "vitest";
+import type { TestAPI } from "vitest";
 
 export type Extension<Input = any, Output = any> = (
   input: TestAPI<Input>,

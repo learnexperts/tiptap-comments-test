@@ -25,6 +25,21 @@
       "quoteStyle": "double"
     }
   },
+  "overrides": [
+    {
+      "includes": ["tests/fixtures/**"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noEmptyPattern": "off"
+          },
+          "suspicious": {
+            "noConfusingVoidType": "off"
+          }
+        }
+      }
+    }
+  ],
   "assist": {
     "enabled": true,
     "actions": {

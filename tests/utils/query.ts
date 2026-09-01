@@ -1,10 +1,8 @@
-import { NodePos } from "@tiptap/core";
-import { Node } from "@tiptap/pm/model";
-import { NodeMatcherConfig, nodeMatcher } from "./nodeMatcher";
+import type { NodePos } from "@tiptap/core";
+import type { Node } from "@tiptap/pm/model";
+import { type NodeMatcherConfig, nodeMatcher } from "./nodeMatcher";
 
-interface Predicate {
-  (node: Node): boolean;
-}
+type Predicate = (node: Node) => boolean;
 
 /**
  * Finds the first descendant of `root` matching the predicate, in document

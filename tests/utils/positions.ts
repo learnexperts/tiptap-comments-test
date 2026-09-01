@@ -1,4 +1,4 @@
-import { ResolvedPos } from "@tiptap/pm/model";
+import type { ResolvedPos } from "@tiptap/pm/model";
 import { Selection } from "@tiptap/pm/state";
 
 /** Which way the caret travels. Never zero — see `nearestCursorPosition`. */

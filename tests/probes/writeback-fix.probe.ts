@@ -1,5 +1,5 @@
-import { writebackFixExtensions } from "../utils/extensionSets";
 import { describeCommentMatrix } from "../utils/commentMatrix";
+import { writebackFixExtensions } from "../utils/extensionSets";
 
 /**
  * The same matrix as `tests/comment.test.ts`, with the workaround extensions

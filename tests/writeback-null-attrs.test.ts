@@ -1,8 +1,7 @@
-import { InlineThread } from "@tiptap-pro/extension-comments";
 import {
   Editor,
-  getSchema,
   type Extensions,
+  getSchema,
   type JSONContent,
 } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -13,8 +12,9 @@ import { FontFamily } from "@tiptap/extension-text-style/font-family";
 import { FontSize } from "@tiptap/extension-text-style/font-size";
 import StarterKit from "@tiptap/starter-kit";
 import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
-import type * as Y from "yjs";
+import { InlineThread } from "@tiptap-pro/extension-comments";
 import { afterEach, describe, expect, test } from "vitest";
+import type * as Y from "yjs";
 import { CollabWriteback } from "~/workaround/collabWriteback";
 import { yTextSegments } from "./utils/yMarkSnapshots";
 

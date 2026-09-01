@@ -1,14 +1,8 @@
-interface Unsubscribe {
-  (): void;
-}
+type Unsubscribe = () => void;
 
-interface Callback<T> {
-  (value: T): void;
-}
+type Callback<T> = (value: T) => void;
 
-interface Subscribe<T> {
-  (callback: Callback<T>): Unsubscribe;
-}
+type Subscribe<T> = (callback: Callback<T>) => Unsubscribe;
 
 export function promisify<T>(
   subscribe: Subscribe<T>,
@@ -27,7 +21,7 @@ export function promisify<T>(
 
     function onAbort() {
       cleanup();
-      reject(signal!.reason);
+      reject(signal?.reason);
     }
 
     function cleanup() {

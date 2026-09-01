@@ -1,6 +1,6 @@
-import { type JSONContent } from "@tiptap/core";
-import { type TestAPI } from "vitest";
-import { type ServerClient } from "../utils/createServerClient";
+import type { JSONContent } from "@tiptap/core";
+import type { TestAPI } from "vitest";
+import type { ServerClient } from "../utils/createServerClient";
 
 interface SeedDeps {
   documentName: string;

@@ -1,12 +1,12 @@
-import { threadExistsInDocument } from "@tiptap-pro/extension-comments";
 import type { Editor, Extensions, JSONContent } from "@tiptap/core";
+import { threadExistsInDocument } from "@tiptap-pro/extension-comments";
 import { describe, expect, test } from "~/tests/fixtures";
+import { embeddedInParagraph, paragraph, text } from "./document";
 import type { ExtensionDeps } from "./extensionSets";
+import { waitUntilFlushed } from "./flushChanges";
 import { offsetCursorPosition } from "./positions";
 import { queryOrFail } from "./query";
-import { TextSelection, asNodeSelection, nodeRange } from "./selection";
-import { embeddedInParagraph, paragraph, text } from "./document";
-import { waitUntilFlushed } from "./flushChanges";
+import { asNodeSelection, nodeRange, TextSelection } from "./selection";
 import { createThreads, type SelectionFactory } from "./thread";
 
 /**
@@ -70,6 +70,9 @@ function targetAnchor(editor: Editor): number {
     `No text run containing ${TARGET}`,
   );
 
+  // `?.` here would silently feed undefined into the offset arithmetic rather
+  // than failing, so the assertion is the safer of the two.
+  // biome-ignore lint/style/noNonNullAssertion: queryOrFail matched on `node.text`.
   return nodeRange(run).from + run.node.text!.indexOf(TARGET);
 }
 

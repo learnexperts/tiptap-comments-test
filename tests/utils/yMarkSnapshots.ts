@@ -12,9 +12,7 @@ export function yTextSegments(ydoc: Y.Doc, field = "default"): YTextSegment[] {
     ydoc.getXmlFragment(field),
   ];
 
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-
+  for (let node = stack.pop(); node; node = stack.pop()) {
     for (const child of node.toArray()) {
       if (child instanceof Y.XmlText) {
         for (const op of child.toDelta()) {

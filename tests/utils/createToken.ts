@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { type TiptapClaims } from "./claims";
+import type { TiptapClaims } from "./claims";
 
 const DEFAULT_SECRET = "dev-jwt-secret";
 const DEFAULT_TTL_SECONDS = 60 * 60;

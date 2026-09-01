@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { type TestAPI } from "vitest";
+import type { TestAPI } from "vitest";
 
 function withDocumentFixtures<C extends {}>(baseTest: TestAPI<C>) {
   return baseTest.extend<{

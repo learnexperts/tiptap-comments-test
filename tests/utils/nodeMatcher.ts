@@ -1,12 +1,10 @@
-import { Node } from "@tiptap/pm/model";
+import type { Node } from "@tiptap/pm/model";
 
-interface Predicate {
-  (node: Node): boolean;
-}
+type Predicate = (node: Node) => boolean;
 
 export interface NodeMatcherConfig {
   nodeType?: string;
-  attributes?: Record<string, any>;
+  attributes?: Record<string, unknown>;
   text?: string | RegExp;
 }
 
@@ -30,7 +28,9 @@ export function matchNodeType(nodeType: string): Predicate {
   return (node) => node.type.name === nodeType;
 }
 
-export function matchAttributes(attributes: Record<string, any>): Predicate {
+export function matchAttributes(
+  attributes: Record<string, unknown>,
+): Predicate {
   return (node) =>
     Object.entries(attributes).every(
       ([key, value]) => node.attrs[key] === value,

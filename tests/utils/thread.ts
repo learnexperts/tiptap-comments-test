@@ -2,9 +2,7 @@ import type { Editor, EditorEvents } from "@tiptap/core";
 import { assert, vi } from "vitest";
 import type { Selection } from "./selection";
 
-export interface SelectionFactory {
-  (editor: Editor): Selection;
-}
+export type SelectionFactory = (editor: Editor) => Selection;
 
 /**
  * Creates a comment thread over `select(editor)` and resolves once the editor

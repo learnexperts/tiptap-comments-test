@@ -1,4 +1,4 @@
-import { TestAPI } from "vitest";
+import type { TestAPI } from "vitest";
 import {
   createServerClient,
   type ServerClient,

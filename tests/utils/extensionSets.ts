@@ -1,5 +1,3 @@
-import { CommentsKit } from "@tiptap-pro/extension-comments";
-import { TiptapCollabProvider } from "@tiptap-pro/provider";
 import type { Extensions } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TextStyle } from "@tiptap/extension-text-style";
@@ -8,6 +6,8 @@ import { Color } from "@tiptap/extension-text-style/color";
 import { FontFamily } from "@tiptap/extension-text-style/font-family";
 import { FontSize } from "@tiptap/extension-text-style/font-size";
 import StarterKit from "@tiptap/starter-kit";
+import { CommentsKit } from "@tiptap-pro/extension-comments";
+import type { TiptapCollabProvider } from "@tiptap-pro/provider";
 import { CollabWriteback } from "~/workaround/collabWriteback";
 
 export type ExtensionDeps = { syncedProvider: TiptapCollabProvider };

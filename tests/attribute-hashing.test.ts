@@ -1,15 +1,15 @@
 import {
   Editor,
-  Mark,
-  getSchema,
   type Extensions,
+  getSchema,
   type JSONContent,
+  Mark,
 } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import StarterKit from "@tiptap/starter-kit";
 import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
-import type * as Y from "yjs";
 import { afterEach, describe, expect, test } from "vitest";
+import type * as Y from "yjs";
 import { yTextSegments } from "./utils/yMarkSnapshots";
 
 /**

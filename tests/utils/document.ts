@@ -1,4 +1,4 @@
-import { JSONContent } from "@tiptap/core";
+import type { JSONContent } from "@tiptap/core";
 
 type JSONMark = NonNullable<JSONContent["marks"]>[number];
 

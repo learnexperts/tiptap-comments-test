@@ -1,13 +1,13 @@
+import { Editor, type Extensions } from "@tiptap/core";
 import {
   TiptapCollabProvider,
   TiptapCollabProviderWebsocket,
 } from "@tiptap-pro/provider";
-import { Editor, type Extensions } from "@tiptap/core";
-import { type TestAPI } from "vitest";
+import type { TestAPI } from "vitest";
 import Websocket from "ws";
-import { type UserFixtures } from "./user";
 import { stockExtensions } from "../utils/extensionSets";
 import { waitForSync } from "../utils/waitForSync";
+import type { UserFixtures } from "./user";
 
 interface EditorDeps extends UserFixtures {
   documentName: string;
@@ -23,11 +23,11 @@ export function withEditorFixtures<C extends EditorDeps>(test: TestAPI<C>) {
       editor: Editor;
     };
   }>({
-    async provider({ documentName, token, seed: _, claims }, use) {
+    async provider({ documentName, token, seed: _, claims: _claims }, use) {
       const provider = new TiptapCollabProvider({
         name: documentName,
         token,
-        //user: claims.sub,
+        //user: _claims.sub,
         websocketProvider: new TiptapCollabProviderWebsocket({
           baseUrl: "ws://localhost:3030",
           WebSocketPolyfill: Websocket,

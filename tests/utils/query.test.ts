@@ -1,4 +1,4 @@
-import { Editor, JSONContent } from "@tiptap/core";
+import { Editor, type JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { afterEach, describe, expect, test } from "vitest";
 import { query, queryAll, queryOrFail } from "./query";
