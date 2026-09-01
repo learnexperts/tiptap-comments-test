@@ -8,7 +8,11 @@
     "test:probes": "vitest run --project=probes",
     "test:all": "vitest run",
     "test:watch": "vitest --project=repro",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "check:fix": "biome check --write ."
   },
   "packageManager": "pnpm@10.32.1",
   "devDependencies": {
