@@ -1,0 +1,22 @@
+# Git hooks. Installed by lefthook's postinstall on `pnpm install`.
+#
+# Note: `pnpm test` is deliberately red — see docs/adr/0001-tests-are-a-bug-report.md.
+# No hook may gate on it, or every push would be blocked while the defect is open.
+# The offline `utils` project is the load-bearing suite, so that is what pre-push runs.
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: biome
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,css}"
+      run: pnpm exec biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+
+pre-push:
+  parallel: true
+  jobs:
+    - name: typecheck
+      run: pnpm typecheck
+
+    - name: test:utils
+      run: pnpm test:utils

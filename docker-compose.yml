@@ -11,6 +11,9 @@ services:
       JWT_SECRET: dev-jwt-secret
       API_SECRET: dev-api-secret
       COLLAB_THREAD_AUTHENTICATOR: 1
+      COLLAB_DEFAULT_AUTO_VERSIONING: 1
+      #COLLAB_DEFAULT_AUTO_VERSIONING_INTERVAL: 30
+      #COLLAB_AUTO_VERSIONING_ALL_FRAGMENTS: 1
     ports:
       - "3030:8080"
       - "3031:8082"

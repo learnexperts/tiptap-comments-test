@@ -4,3 +4,12 @@
 bug-report.md
 
 node_modules/
+
+# Personal agent config: issue tracking is per-developer, domain docs are shared
+CLAUDE.local.md
+.claude/issue-tracker.md
+.claude/triage-labels.md
+.scratch/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
