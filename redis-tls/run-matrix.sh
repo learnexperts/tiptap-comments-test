@@ -30,9 +30,11 @@ results=()
 for row in "${CASES[@]}"; do
   IFS='|' read -r name image url ca expected <<<"$row"
   echo "=== $name"
-  COLLAB_IMAGE="$image" REDIS_URL="$url" NODE_EXTRA_CA_CERTS="$ca" \
-    "${COMPOSE[@]}" up -d --wait --force-recreate collab-a collab-b >/dev/null 2>&1 \
-    || echo "    (collab containers did not report healthy)"
+  if ! up_log=$(COLLAB_IMAGE="$image" REDIS_URL="$url" NODE_EXTRA_CA_CERTS="$ca" \
+    "${COMPOSE[@]}" up -d --wait --force-recreate collab-a collab-b 2>&1); then
+    echo "    collab containers did not report healthy; last compose output:"
+    tail -n 5 <<<"$up_log" | sed 's/^/      /'
+  fi
   sleep 3
 
   version=$("${COMPOSE[@]}" exec -T collab-a printenv COLLABORATION_VERSION 2>/dev/null)

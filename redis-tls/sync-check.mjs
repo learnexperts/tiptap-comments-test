@@ -6,8 +6,8 @@ import { HocuspocusProvider } from "@hocuspocus/provider";
 import * as Y from "yjs";
 
 const SECRET = process.env.JWT_SECRET ?? "dev-jwt-secret";
-const A = process.env.COLLAB_A ?? "ws://localhost:3030";
-const B = process.env.COLLAB_B ?? "ws://localhost:3032";
+const A = process.env.COLLAB_A ?? "ws://localhost:3040";
+const B = process.env.COLLAB_B ?? "ws://localhost:3041";
 const TIMEOUT_MS = 10_000;
 
 const docName = `redis-tls-${Date.now()}`;

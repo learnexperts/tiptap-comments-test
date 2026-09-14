@@ -12,9 +12,11 @@ Tiptap's on-prem configuration docs say `REDIS_URL` mode doesn't support TLS. Th
 
 [`../docker-compose.redis-tls.yml`](../docker-compose.redis-tls.yml) starts:
 
-- **redis**: Redis 7 with TLS on 6379 and plaintext on 6380. Password `devpass`.
+- **redis**: Redis 7 with TLS on 6379 and plaintext on 6380, reachable only inside the compose network. Password `devpass`.
 - **postgres**: shared storage for both collab instances.
-- **collab-a** (`:3030`) and **collab-b** (`:3032`): two collab servers in cluster mode. They can only see each other's updates through Redis.
+- **collab-a** (`:3040`) and **collab-b** (`:3041`): two collab servers in cluster mode. They can only see each other's updates through Redis.
+
+None of these ports collide with the repo's `docker-compose.yml`, so both stacks can run at once.
 
 [`sync-check.mjs`](sync-check.mjs) connects one client to each instance, writes on collab-a, and passes only if the edit arrives on collab-b.
 

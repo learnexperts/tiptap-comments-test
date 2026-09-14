@@ -54,11 +54,10 @@ services:
       --tls-ca-cert-file /certs/ca.crt
       --tls-auth-clients no
       --requirepass devpass
+    # No host ports: everything that talks to Redis runs inside the compose network
+    # (use `docker compose exec redis redis-cli ...`), so a local Redis can't collide.
     volumes:
       - ./redis-tls/certs:/certs:ro
-    ports:
-      - "6379:6379"
-      - "6380:6380"
 
   postgres:
     image: postgres:16-alpine
@@ -81,8 +80,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    # 3040/3041 so this can run alongside the repo's docker-compose.yml (3030/3031).
     ports:
-      - "3030:8080"
+      - "3040:8080"
 
   # Starts after collab-a is healthy so the two don't race on DB migrations.
   collab-b:
@@ -94,4 +94,4 @@ services:
       collab-a:
         condition: service_healthy
     ports:
-      - "3032:8080"
+      - "3041:8080"
