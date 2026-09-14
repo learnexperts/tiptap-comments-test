@@ -1,0 +1,97 @@
+# LD-7729: can the Tiptap collab server reach Redis over TLS in REDIS_URL mode?
+#
+# The Tiptap on-prem docs say REDIS_URL mode doesn't support TLS (only Sentinel
+# mode does, from 3.102.0), and ElastiCache has no Sentinel. This rig checks
+# whether a plain `rediss://` URL works anyway.
+#
+# Redis listens like ElastiCache in "preferred" transit-encryption mode:
+#   6379 = TLS, 6380 = plaintext
+# Two collab instances share Postgres and sync through Redis (cluster mode).
+#
+#   ./redis-tls/gen-certs.sh
+#   docker compose -f docker-compose.redis-tls.yml up
+#   node redis-tls/sync-check.mjs
+#
+# Override per run:
+#   COLLAB_IMAGE  collab server image (default: latest)
+#   REDIS_URL     e.g. redis://:devpass@redis:6380 for the plaintext baseline
+name: redis-tls-test
+
+x-collab-env: &collab-env
+  DB_PROVIDER: postgresql
+  DATABASE_URL: postgres://collab:collab@postgres:5432/collab
+  DATABASE_URL_DIRECT: postgres://collab:collab@postgres:5432/collab
+  PORT: 8080
+  JWT_SECRET: dev-jwt-secret
+  API_SECRET: dev-api-secret
+  COLLAB_CLUSTERMODE: 1
+  REDIS_URL: ${REDIS_URL:-rediss://:devpass@redis:6379}
+  # Our CA is self-signed; ElastiCache certs chain to a public root instead.
+  # Set NODE_EXTRA_CA_CERTS= (empty) to check the server verifies certs.
+  NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS-/certs/ca.crt}
+
+x-collab: &collab
+  platform: linux/amd64
+  image: ${COLLAB_IMAGE:-container.tiptap.dev/collaboration/server:latest}
+  env_file:
+    - ./.env.tiptap-collab
+  volumes:
+    - ./redis-tls/certs/ca.crt:/certs/ca.crt:ro
+  healthcheck:
+    test: ["CMD", "node", "-e", "fetch('http://localhost:8080').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+    interval: 3s
+    retries: 40
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --port 6380
+      --tls-port 6379
+      --tls-cert-file /certs/redis.crt
+      --tls-key-file /certs/redis.key
+      --tls-ca-cert-file /certs/ca.crt
+      --tls-auth-clients no
+      --requirepass devpass
+    volumes:
+      - ./redis-tls/certs:/certs:ro
+    ports:
+      - "6379:6379"
+      - "6380:6380"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: collab
+      POSTGRES_PASSWORD: collab
+      POSTGRES_DB: collab
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "collab"]
+      interval: 2s
+      retries: 20
+
+  collab-a:
+    <<: *collab
+    environment:
+      <<: *collab-env
+      INSTANCE_IDENTIFIER: collab-a
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "3030:8080"
+
+  # Starts after collab-a is healthy so the two don't race on DB migrations.
+  collab-b:
+    <<: *collab
+    environment:
+      <<: *collab-env
+      INSTANCE_IDENTIFIER: collab-b
+    depends_on:
+      collab-a:
+        condition: service_healthy
+    ports:
+      - "3032:8080"
