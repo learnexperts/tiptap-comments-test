@@ -9,8 +9,23 @@ import StarterKit from "@tiptap/starter-kit";
 import { CommentsKit } from "@tiptap-pro/extension-comments";
 import type { TiptapCollabProvider } from "@tiptap-pro/provider";
 import { CollabWriteback } from "~/workaround/collabWriteback";
+import { blockAnchors, blockNodes } from "./blockSchema";
 
 export type ExtensionDeps = { syncedProvider: TiptapCollabProvider };
+
+/** The nodes an editor's content uses, and any anchors replacing CommentsKit's. */
+export interface EditorSchema {
+  nodes: Extensions;
+  /** Registered after CommentsKit, so a same-named anchor replaces its own. */
+  anchors: Extensions;
+}
+
+/**
+ * A configuration as the `extensions` fixture takes it. Vitest reads the
+ * fixture's destructured parameter as its dependencies, so the schema is
+ * chosen by a factory rather than passed alongside `syncedProvider`.
+ */
+export type Configuration = (deps: ExtensionDeps) => Extensions;
 
 const starterKit = StarterKit.configure({
   undoRedo: false,
@@ -19,6 +34,18 @@ const starterKit = StarterKit.configure({
 
 /** Every `textStyle` attribute extension a production editor registers. */
 const textStyleKit = [TextStyle, FontFamily, FontSize, Color, BackgroundColor];
+
+/** StarterKit and the full textStyle kit: the comment matrix's schema. */
+export const textSchema: EditorSchema = {
+  nodes: [starterKit, ...textStyleKit],
+  anchors: [],
+};
+
+/** Attributed blocks shaped like a course editor's: the block matrix's schema. */
+export const blockSchema: EditorSchema = {
+  nodes: [...blockNodes, ...textStyleKit],
+  anchors: blockAnchors,
+};
 
 const collaboration = (provider: TiptapCollabProvider) =>
   Collaboration.configure({ provider, document: provider.document });
@@ -31,36 +58,36 @@ const commentsKit = (provider: TiptapCollabProvider) =>
   });
 
 /**
- * What a normal Tiptap application has: the full textStyle kit, collaboration
- * and comments, and none of the workarounds in `fixtures/editor`. This is the
- * configuration the comment matrix runs under, so its failures are the bug as
- * an ordinary user meets it.
+ * What a normal Tiptap application has: collaboration and comments over
+ * `schema`, and nothing from `workaround/`. The matrices run under it, so
+ * their failures are the bugs as an ordinary user meets them.
  */
-export const stockExtensions = ({
-  syncedProvider,
-}: ExtensionDeps): Extensions => [
-  starterKit,
-  ...textStyleKit,
-  collaboration(syncedProvider),
-  commentsKit(syncedProvider),
-];
+export const stockExtensionsFor =
+  (schema: EditorSchema): Configuration =>
+  ({ syncedProvider }) => [
+    ...schema.nodes,
+    collaboration(syncedProvider),
+    commentsKit(syncedProvider),
+    ...schema.anchors,
+  ];
 
 /**
- * `stockExtensions` plus `CollabWriteback`, which canonicalizes `textStyle`
- * attrs on mark creation and drops retain-delta attributes that already match
- * the current Yjs state. That alone takes the matrix to 34/34.
- *
- * `SparseTextStyleDefaults` and `CompactTextStyleYAttrs` are deliberately not
- * here. The first is redundant once `CollabWriteback` is applied; the second
- * actively regresses the two multi-thread cases on a four-attribute `textStyle`
- * mark, taking the matrix to 32/34.
+ * `stockExtensionsFor(schema)` plus `CollabWriteback`. That alone takes both
+ * matrices green; `workaround/README.md` records which of its mechanisms each
+ * case needs.
  */
-export const writebackFixExtensions = ({
-  syncedProvider,
-}: ExtensionDeps): Extensions => [
-  starterKit,
-  ...textStyleKit,
-  CollabWriteback,
-  collaboration(syncedProvider),
-  commentsKit(syncedProvider),
-];
+export const writebackFixExtensionsFor =
+  (schema: EditorSchema): Configuration =>
+  ({ syncedProvider }) => [
+    ...schema.nodes,
+    CollabWriteback,
+    collaboration(syncedProvider),
+    commentsKit(syncedProvider),
+    ...schema.anchors,
+  ];
+
+/** The stock configuration over {@link textSchema}. */
+export const stockExtensions = stockExtensionsFor(textSchema);
+
+/** The writeback configuration over {@link textSchema}. */
+export const writebackFixExtensions = writebackFixExtensionsFor(textSchema);

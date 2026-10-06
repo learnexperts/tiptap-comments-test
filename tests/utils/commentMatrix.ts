@@ -17,7 +17,7 @@ import { createThreads, type SelectionFactory } from "./thread";
  * `tests/comment.test.ts` runs it on `stockExtensions` — a plain Tiptap setup,
  * where the failures are the bug as an ordinary user meets it.
  * `tests/probes/writeback-fix.probe.ts` runs the identical matrix on
- * `writebackFixExtensions` to show what the workaround extensions recover.
+ * `writebackFixExtensions` to show what the workaround recovers.
  * Keeping both on one definition means they cannot drift.
  */
 
