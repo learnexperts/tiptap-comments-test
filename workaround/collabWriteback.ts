@@ -3,6 +3,10 @@ import { Mark, type MarkType } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { ySyncPluginKey } from "@tiptap/y-tiptap";
 import * as Y from "yjs";
+import {
+  patchYXmlElementWrites,
+  registerSchemaDefaults,
+} from "./elementWriteback";
 
 const MARK_CREATE_PATCHED = Symbol("collabWritebackMarkCreate");
 const APPLY_DELTA_PATCHED = Symbol("collabWritebackApplyDelta");
@@ -184,6 +188,10 @@ export function stripUnchangedRetainAttributes(
  *    y-prosemirror `view.update` writes them back to Yjs.
  * 3. Patch `Y.Text.applyDelta` so y-sync retains do not rewrite format items
  *    whose values already match.
+ * 4. Patch Yjs element writes so a block y-prosemirror re-creates (wrapping
+ *    it in `blockThread`) copies the stored element's attribute key order,
+ *    and schema defaults are not written onto elements that lack them. See
+ *    `elementWriteback.ts`.
  *
  * Register after FontFamily / FontSize / Color / BackgroundColor (and after
  * `SparseTextStyleDefaults` if used).
@@ -199,6 +207,8 @@ export const CollabWriteback = Extension.create({
 
   onBeforeCreate() {
     patchYTextApplyDelta();
+    patchYXmlElementWrites();
+    registerSchemaDefaults(this.editor.schema);
 
     const textStyle = this.editor.schema.marks.textStyle;
     if (!textStyle) {
