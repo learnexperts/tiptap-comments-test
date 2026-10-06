@@ -1,5 +1,8 @@
 # `tests/` is a bug report, not a regression suite
 
+_Amended 2026-10-06: the report now covers a second defect (block anchors), and
+`tests/workaround/` was added. See the consequences._
+
 This repository exists to communicate two TipTap collab + CommentsKit defects to
 the TipTap team. `tests/` is the artifact we hand them, so it is optimised for a
 stranger reading it once — not for coverage, and not for CI. Each file makes one
@@ -7,13 +10,15 @@ claim, and a failing test *is* the report rather than a problem to fix.
 
 ## What this means in practice
 
-- **`pnpm test` is expected to fail.** Four tests in `tests/comment.test.ts` are
-  red because the bug is real. A green default run would mean we had stopped
-  reproducing the defect. The failures are indexed in the README so a *new*
-  failure is still distinguishable from a documented one.
-- **One claim per file.** `writeback-null-attrs.test.ts` shows the mechanism
-  offline, `comment.test.ts` shows the resulting anchor loss against a real
-  server, `probes/writeback-fix.probe.ts` shows our interim workaround.
+- **`pnpm test` is expected to fail.** Tests in `tests/comment.test.ts` and
+  `tests/block-anchor.test.ts` are red because the bugs are real. A green
+  default run would mean we had stopped reproducing a defect. The failures are
+  indexed in the README so a *new* failure is still distinguishable from a
+  documented one.
+- **One claim per file.** `writeback-null-attrs.test.ts` shows the inline
+  mechanism offline, `comment.test.ts` shows the resulting anchor loss against
+  a real server, `block-anchor.test.ts` shows the block defect, and each
+  `probes/*.probe.ts` shows our interim workaround on the same matrix.
 - **The probe is held out of the default run.** The suites are Vitest projects
   and `pnpm test` runs only `repro`; the probe is `pnpm test:probes`. It is
   all-green, and mixing it into the default run would bury the four red tests
@@ -43,8 +48,14 @@ claim, and a failing test *is* the report rather than a problem to fix.
 ## Consequences
 
 - CI cannot gate on `pnpm test` while the defect is open.
-- New cases go into `tests/utils/commentMatrix.ts`, which both the stock suite
-  and the probe run, so the two configurations cannot drift apart.
+- New cases go into the matrix they belong to, `tests/utils/commentMatrix.ts`
+  or `tests/utils/blockMatrix.ts`. The stock suite and the probe run the same
+  matrix, and both configurations come only from `tests/utils/extensionSets.ts`,
+  so they cannot drift apart.
+- `tests/workaround/` is the one green project that is not part of the report.
+  It pins the workaround's own contract offline, chiefly that it changes only
+  the editor it is added to; a leak would silently turn stock evidence green.
+  It runs on pre-push.
 - Adding a test needs a reason a TipTap engineer would care about. Coverage is
   not one.
 - The comparison that eliminated two candidate workarounds survives only as a
