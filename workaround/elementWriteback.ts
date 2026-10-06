@@ -1,37 +1,30 @@
-import type { Schema } from "@tiptap/pm/model";
-import { ySyncPluginKey } from "@tiptap/y-tiptap";
 import * as Y from "yjs";
+import { type SchemaDefaults, writebackScope } from "./writebackScope";
 
 /**
- * Element-attribute half of `CollabWriteback`.
+ * Element-attribute writes, for the block-anchor defect
+ * (`docs/block-anchor-undone.md`).
  *
- * A comment-only connection may replace a block only with an identical copy:
- * the server compares element attributes including the order their keys were
- * first written. y-prosemirror cannot move an element, so wrapping a block in
- * `blockThread` deletes it and inserts a copy built from the PM node — in
- * schema order, with every non-null default. A block whose stored keys were
- * written in another order (a code block's language picked after insert, a
- * paragraph aligned after typing) or that lacks a default therefore reads as
- * an edit, and the server undoes the whole update, anchor included.
+ * A comment-only connection may replace a block only with an identical copy,
+ * attribute key order included. y-prosemirror cannot move an element, so
+ * wrapping a block in `blockThread` deletes it and inserts a copy rebuilt from
+ * the PM node: keys in schema order, every non-null default present.
  *
- * Two patches, both active only inside `ySyncPluginKey` transactions:
+ * Two patches, each active only for writes `writebackScope` puts in scope:
  *
- * 1. `Y.XmlFragment` `delete`/`insert`: snapshot elements as y-prosemirror
- *    deletes them, and give each inserted copy that differs from a snapshot
- *    only by order or by defaults the snapshot lacked the snapshot's key order
- *    and key set. y-tiptap always deletes before it inserts the replacement.
- * 2. `Y.XmlElement.setAttribute`: skip writing a schema default onto an
- *    existing element that does not store the key. Patch 1 relies on this —
- *    the copy omits that default too, and y-prosemirror would otherwise write
- *    it back on the next sync — and it also keeps inline anchors on such blocks
- *    from rewriting the block.
+ * - `Y.XmlFragment` `delete`/`insert`: snapshot elements as y-prosemirror
+ *   deletes them, and give each inserted copy that differs from a snapshot
+ *   only by order, or by defaults the snapshot lacked, the snapshot's key order
+ *   and key set. y-tiptap always deletes before it inserts the replacement.
+ * - `Y.XmlElement.setAttribute`: skip writing a schema default onto an existing
+ *   element that does not store the key. The aligned copy omits such defaults
+ *   too, and y-prosemirror would otherwise write them back on the next sync;
+ *   it also keeps an inline anchor on such a block from rewriting the block.
  *
- * Both only ever change how identical content is written, never what it is.
+ * Neither changes what the content is, only how identical content is written.
  */
 
 const PATCHED = Symbol("collabWritebackElements");
-
-type Attrs = Record<string, unknown>;
 
 /** An element as y-prosemirror deleted it, attributes in stored order. */
 interface StoredElement {
@@ -44,59 +37,40 @@ type PrelimElement = Y.XmlElement & {
   _prelimContent: unknown[] | null;
 };
 
-type FragmentProto = typeof Y.XmlFragment.prototype & {
+type FragmentPrototype = typeof Y.XmlFragment.prototype & {
   [PATCHED]?: boolean;
 };
-
-type DocWithTransaction = Y.Doc & { _transaction: Y.Transaction | null };
-
-/** Per node name, the non-null schema default of each attribute. */
-const schemaDefaults = new Map<string, Map<string, unknown>>();
 
 /** Elements deleted so far in each y-sync transaction. */
 const deletedInTransaction = new WeakMap<Y.Transaction, StoredElement[]>();
 
-/** Record `schema`'s attribute defaults, by node name. */
-export function registerSchemaDefaults(schema: Schema): void {
-  for (const [name, type] of Object.entries(schema.nodes)) {
-    const defaults = new Map<string, unknown>();
-    for (const [key, spec] of Object.entries(type.spec.attrs ?? {})) {
-      const value = (spec as { default?: unknown } | undefined)?.default;
-      if (value !== null && value !== undefined) {
-        defaults.set(key, value);
-      }
-    }
-    schemaDefaults.set(name, defaults);
-  }
-}
-
-/** Install both patches. Idempotent. */
+/** Install both patches once per process; each checks scope per write. */
 export function patchYXmlElementWrites(): void {
-  const fragment = Y.XmlFragment.prototype as FragmentProto;
+  const fragment = Y.XmlFragment.prototype as FragmentPrototype;
   if (fragment[PATCHED]) {
     return;
   }
 
   const originalDelete = fragment.delete;
   fragment.delete = function (this: Y.XmlFragment, index, length = 1) {
-    const transaction = ySyncTransaction(this.doc);
-    if (transaction) {
-      const stored = deletedInTransaction.get(transaction) ?? [];
+    const scope = writebackScope(this);
+    if (scope) {
+      const stored = deletedInTransaction.get(scope.transaction) ?? [];
       for (const child of this.slice(index, index + length)) {
         collectStored(child, stored);
       }
-      deletedInTransaction.set(transaction, stored);
+      deletedInTransaction.set(scope.transaction, stored);
     }
     return originalDelete.call(this, index, length);
   };
 
   const originalInsert = fragment.insert;
   fragment.insert = function (this: Y.XmlFragment, index, content) {
-    const transaction = ySyncTransaction(this.doc);
-    const stored = transaction && deletedInTransaction.get(transaction);
-    if (stored?.length) {
+    const scope = writebackScope(this);
+    const stored = scope && deletedInTransaction.get(scope.transaction);
+    if (scope && stored?.length) {
       for (const child of content) {
-        alignWithStored(child, stored);
+        alignWithStored(child, stored, scope.defaults);
       }
     }
     return originalInsert.call(this, index, content);
@@ -111,12 +85,14 @@ export function patchYXmlElementWrites(): void {
   ) {
     // `_prelimAttrs` is non-null while a new element integrates its own
     // attributes; only elements that already existed are spared the default.
-    const existing = this.doc !== null && this._prelimAttrs === null;
+    const scope =
+      this.doc !== null && this._prelimAttrs === null
+        ? writebackScope(this)
+        : null;
     if (
-      existing &&
-      ySyncTransaction(this.doc) &&
+      scope &&
       this.getAttribute(key) === undefined &&
-      isSchemaDefault(this.nodeName, key, value)
+      isSchemaDefault(scope.defaults, this.nodeName, key, value)
     ) {
       return;
     }
@@ -134,7 +110,7 @@ function collectStored(type: unknown, out: StoredElement[]): void {
   }
   out.push({
     nodeName: type.nodeName,
-    attrs: Object.entries(type.getAttributes() as Attrs),
+    attrs: Object.entries(type.getAttributes() as Record<string, unknown>),
   });
   for (const child of type.toArray()) {
     collectStored(child, out);
@@ -145,7 +121,11 @@ function collectStored(type: unknown, out: StoredElement[]): void {
  * Give a not-yet-integrated copy, and each copy below it, the key order and
  * key set of the first deleted element it duplicates.
  */
-function alignWithStored(type: unknown, stored: StoredElement[]): void {
+function alignWithStored(
+  type: unknown,
+  stored: StoredElement[],
+  defaults: SchemaDefaults,
+): void {
   if (!(type instanceof Y.XmlElement)) {
     return;
   }
@@ -153,7 +133,7 @@ function alignWithStored(type: unknown, stored: StoredElement[]): void {
   const attrs = prelim._prelimAttrs;
   if (attrs) {
     const index = stored.findIndex((entry) =>
-      duplicates(entry, type.nodeName, attrs),
+      duplicates(entry, type.nodeName, attrs, defaults),
     );
     if (index !== -1) {
       const [twin] = stored.splice(index, 1);
@@ -163,19 +143,20 @@ function alignWithStored(type: unknown, stored: StoredElement[]): void {
     }
   }
   for (const child of prelim._prelimContent ?? []) {
-    alignWithStored(child, stored);
+    alignWithStored(child, stored, defaults);
   }
 }
 
 /**
  * Whether a copy named `nodeName` with `attrs` holds the same content as
- * `stored`: every stored key with an equal value, and nothing else but
- * schema defaults.
+ * `stored`: every stored key with an equal value, and nothing else but schema
+ * defaults.
  */
 function duplicates(
   stored: StoredElement,
   nodeName: string,
   attrs: Map<string, unknown>,
+  defaults: SchemaDefaults,
 ): boolean {
   if (stored.nodeName !== nodeName) {
     return false;
@@ -187,18 +168,19 @@ function duplicates(
     ) &&
     [...attrs].every(
       ([key, value]) =>
-        storedKeys.has(key) || isSchemaDefault(nodeName, key, value),
+        storedKeys.has(key) || isSchemaDefault(defaults, nodeName, key, value),
     )
   );
 }
 
 function isSchemaDefault(
+  defaults: SchemaDefaults,
   nodeName: string,
   key: string,
   value: unknown,
 ): boolean {
-  const defaults = schemaDefaults.get(nodeName);
-  return defaults?.has(key) === true && sameValue(defaults.get(key), value);
+  const byKey = defaults.get(nodeName);
+  return byKey?.has(key) === true && sameValue(byKey.get(key), value);
 }
 
 function sameValue(left: unknown, right: unknown): boolean {
@@ -208,12 +190,4 @@ function sameValue(left: unknown, right: unknown): boolean {
       typeof right === "object" &&
       JSON.stringify(left) === JSON.stringify(right))
   );
-}
-
-/** The running transaction, when y-prosemirror is writing PM → Y. */
-function ySyncTransaction(doc: Y.Doc | null): Y.Transaction | null {
-  const transaction = (doc as DocWithTransaction | null)?._transaction;
-  return transaction && transaction.origin === ySyncPluginKey
-    ? transaction
-    : null;
 }

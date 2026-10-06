@@ -5,6 +5,7 @@
   "scripts": {
     "test": "vitest run --project=repro",
     "test:utils": "vitest run --project=utils",
+    "test:workaround": "vitest run --project=workaround",
     "test:probes": "vitest run --project=probes",
     "test:all": "vitest run",
     "test:watch": "vitest --project=repro",

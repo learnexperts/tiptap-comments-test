@@ -2,7 +2,7 @@
 #
 # Note: `pnpm test` is deliberately red — see docs/adr/0001-tests-are-a-bug-report.md.
 # No hook may gate on it, or every push would be blocked while the defect is open.
-# The offline `utils` project is the load-bearing suite, so that is what pre-push runs.
+# The offline `utils` and `workaround` projects are green, so those are what pre-push runs.
 
 pre-commit:
   parallel: true
@@ -20,3 +20,6 @@ pre-push:
 
     - name: test:utils
       run: pnpm test:utils
+
+    - name: test:workaround
+      run: pnpm test:workaround

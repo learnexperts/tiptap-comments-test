@@ -2,7 +2,7 @@ import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 /**
- * Three projects, each with its own command — see
+ * Four projects, each with its own command — see
  * `docs/adr/0001-tests-are-a-bug-report.md`.
  *
  * `pnpm test` runs `repro` only, so the default run is the defect itself and
@@ -25,6 +25,14 @@ export default defineConfig({
         // Unit tests for the helpers the repro leans on. Offline.
         extends: true,
         test: { name: "utils", include: ["tests/utils/**/*.test.ts"] },
+      },
+      {
+        // The workaround's own contract. Offline, and green.
+        extends: true,
+        test: {
+          name: "workaround",
+          include: ["tests/workaround/**/*.test.ts"],
+        },
       },
       {
         // The report itself. `tests/*.test.ts` is deliberately not `**` so the
