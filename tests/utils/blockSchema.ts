@@ -82,7 +82,7 @@ export const blockNodes: Extensions = [
 
 /**
  * The comment anchors, with the block anchor in the callout's group.
- * Registered after `CommentsKit` so this `blockThread` replaces its own.
+ * Registered with `Comments` in place of CommentsKit's own anchors.
  */
 export const blockAnchors: Extensions = [
   BlockThread.extend({ group: `block ${CALLOUT_CONTENT}` }),
