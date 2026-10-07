@@ -63,9 +63,9 @@ Fixing either would close the defect. (1) is the more general problem: it affect
 
 ## Our interim workaround (not a recommendation)
 
-`workaround/collabWriteback.ts` is what we run in production while this is open. **Do not treat it as a fix.** It patches `MarkType.create` and monkey-patches `Y.Text.prototype.applyDelta` from outside the library — acceptable as a stopgap we own, not as guidance for anyone else.
+`workaround/` is what we run in production while this is open ([its README](../workaround/README.md)). **Do not treat it as a fix.** For this defect it patches how `Y.Text` writes marks, from outside the library — acceptable as a stopgap we own, not as guidance for anyone else.
 
-Its value to this report is diagnostic. It canonicalizes `textStyle` attrs on mark creation and drops retain-delta attributes that already match the current Yjs state — that is, it neutralises the shape-sensitivity from outside. Doing so takes the matrix from 30/34 to **34/34**, which is what localises the defect to the comparison described above. Two other candidate extensions were tried; one is redundant and one is harmful — see [What the workaround fixes](#what-the-workaround-fixes).
+Its value to this report is diagnostic. Where y-prosemirror writes a mark that says the same as the one Yjs stores, it leaves the stored one in place, hashed key included — that is, it neutralises the shape-sensitivity from outside. Doing so takes the matrix from 30/34 to **34/34**, which is what localises the defect to the comparison described above. How it got there, including mechanisms deleted for doing no work or doing harm, is in [its history](../workaround/README.md#history). Two other candidate extensions were tried; one is redundant and one is harmful — see [What the workaround fixes](#what-the-workaround-fixes).
 
 An `appendTransaction` that strips nulls from the ProseMirror doc does **not** work on its own: `mark.create({ backgroundColor })` still merges schema `default: null` from Color / FontSize / FontFamily before writeback sees it.
 
@@ -81,7 +81,7 @@ On **read-only + `commentDocumentNames`**, the client may not persist that rewri
 
 ## The matrix
 
-`tests/comment.test.ts` and the probe run one shared definition (`tests/utils/commentMatrix.ts`), so the only variable between them is the extension list.
+`tests/comment.test.ts` runs one shared definition (`tests/utils/commentMatrix.ts`) twice, stock and with the workaround, so the only variable between them is the extension list.
 
 Five seeds — block-level, undecorated text, bolded text, text with a single style (`backgroundColor`), text with multiple styles (all four `textStyle` attrs). Four selection scenarios on the four text seeds — exact, partially overlapping (crossing one mark boundary), two threads on disjoint parts, two threads on overlapping parts. 17 cases, 34 tests.
 

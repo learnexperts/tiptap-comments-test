@@ -38,6 +38,49 @@
           }
         }
       }
+    },
+    {
+      "includes": ["tests/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": [
+                      "**/workaround/*",
+                      "!**/workaround/collabWriteback"
+                    ],
+                    "message": "CollabWriteback is the workaround's only interface; import it from workaround/collabWriteback (see workaround/README.md)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["workaround/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/tests/**", "~/tests/**"],
+                    "message": "workaround/ never imports from tests/ (ADR 0002)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "assist": {

@@ -6,61 +6,61 @@ import { Color } from "@tiptap/extension-text-style/color";
 import { FontFamily } from "@tiptap/extension-text-style/font-family";
 import { FontSize } from "@tiptap/extension-text-style/font-size";
 import StarterKit from "@tiptap/starter-kit";
-import { CommentsKit } from "@tiptap-pro/extension-comments";
+import { Comments, CommentsKit } from "@tiptap-pro/extension-comments";
 import type { TiptapCollabProvider } from "@tiptap-pro/provider";
-import { CollabWriteback } from "~/workaround/collabWriteback";
+import { blockAnchors, blockNodes } from "./blockSchema";
 
 export type ExtensionDeps = { syncedProvider: TiptapCollabProvider };
+
+export interface EditorSchema {
+  nodes: Extensions;
+  /** Replaces CommentsKit's anchors; `null` keeps them. */
+  anchors: Extensions | null;
+}
+
+// Vitest reads a fixture's destructured parameter as its dependencies, so a
+// configuration takes only `syncedProvider` and the schema comes from a factory.
+export type Configuration = (deps: ExtensionDeps) => Extensions;
 
 const starterKit = StarterKit.configure({
   undoRedo: false,
   trailingNode: false,
 });
 
-/** Every `textStyle` attribute extension a production editor registers. */
 const textStyleKit = [TextStyle, FontFamily, FontSize, Color, BackgroundColor];
+
+export const textSchema: EditorSchema = {
+  nodes: [starterKit, ...textStyleKit],
+  anchors: null,
+};
+
+export const blockSchema: EditorSchema = {
+  nodes: [...blockNodes, ...textStyleKit],
+  anchors: blockAnchors,
+};
 
 const collaboration = (provider: TiptapCollabProvider) =>
   Collaboration.configure({ provider, document: provider.document });
 
-const commentsKit = (provider: TiptapCollabProvider) =>
-  CommentsKit.configure({
-    provider,
-    deleteUnreferencedThreads: false,
-    useLegacyWrapping: false,
-  });
+const commentsOptions = (provider: TiptapCollabProvider) => ({
+  provider,
+  deleteUnreferencedThreads: false,
+  useLegacyWrapping: false,
+});
 
-/**
- * What a normal Tiptap application has: the full textStyle kit, collaboration
- * and comments, and none of the workarounds in `fixtures/editor`. This is the
- * configuration the comment matrix runs under, so its failures are the bug as
- * an ordinary user meets it.
- */
-export const stockExtensions = ({
-  syncedProvider,
-}: ExtensionDeps): Extensions => [
-  starterKit,
-  ...textStyleKit,
-  collaboration(syncedProvider),
-  commentsKit(syncedProvider),
-];
+// `Comments` is CommentsKit without the anchors, so each anchor registers once.
+const comments = (provider: TiptapCollabProvider, schema: EditorSchema) =>
+  schema.anchors
+    ? [Comments.configure(commentsOptions(provider)), ...schema.anchors]
+    : [CommentsKit.configure(commentsOptions(provider))];
 
-/**
- * `stockExtensions` plus `CollabWriteback`, which canonicalizes `textStyle`
- * attrs on mark creation and drops retain-delta attributes that already match
- * the current Yjs state. That alone takes the matrix to 34/34.
- *
- * `SparseTextStyleDefaults` and `CompactTextStyleYAttrs` are deliberately not
- * here. The first is redundant once `CollabWriteback` is applied; the second
- * actively regresses the two multi-thread cases on a four-attribute `textStyle`
- * mark, taking the matrix to 32/34.
- */
-export const writebackFixExtensions = ({
-  syncedProvider,
-}: ExtensionDeps): Extensions => [
-  starterKit,
-  ...textStyleKit,
-  CollabWriteback,
-  collaboration(syncedProvider),
-  commentsKit(syncedProvider),
-];
+/** A plain Tiptap setup: nothing from `workaround/`. */
+export const stockExtensionsFor =
+  (schema: EditorSchema): Configuration =>
+  ({ syncedProvider }) => [
+    ...schema.nodes,
+    collaboration(syncedProvider),
+    ...comments(syncedProvider, schema),
+  ];
+
+export const stockExtensions = stockExtensionsFor(textSchema);

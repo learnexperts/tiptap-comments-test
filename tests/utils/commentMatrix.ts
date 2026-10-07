@@ -1,8 +1,7 @@
-import type { Editor, Extensions, JSONContent } from "@tiptap/core";
+import type { Editor, JSONContent } from "@tiptap/core";
 import { threadExistsInDocument } from "@tiptap-pro/extension-comments";
 import { describe, expect, test } from "~/tests/fixtures";
 import { embeddedInParagraph, paragraph, text } from "./document";
-import type { ExtensionDeps } from "./extensionSets";
 import { waitUntilFlushed } from "./flushChanges";
 import { offsetCursorPosition } from "./positions";
 import { queryOrFail } from "./query";
@@ -14,11 +13,9 @@ import { createThreads, type SelectionFactory } from "./thread";
  * scenarios, shared by every suite that wants to run it under a particular
  * editor configuration.
  *
- * `tests/comment.test.ts` runs it on `stockExtensions` — a plain Tiptap setup,
- * where the failures are the bug as an ordinary user meets it.
- * `tests/probes/writeback-fix.probe.ts` runs the identical matrix on
- * `writebackFixExtensions` to show what the workaround extensions recover.
- * Keeping both on one definition means they cannot drift.
+ * `tests/comment.test.ts` runs it stock, where the failures are the bug as an
+ * ordinary user meets it, and again with the workaround to show what that
+ * recovers. Keeping both on one definition means they cannot drift.
  */
 
 const TARGET = "[formatted text]";
@@ -164,18 +161,10 @@ const cases: CommentCase[] = [
   },
 ];
 
-/**
- * Registers the whole matrix under `label`, with every case built from
- * `getExtensions`.
- */
-export function describeCommentMatrix(
-  label: string,
-  getExtensions: (deps: ExtensionDeps) => Extensions,
-) {
+/** Registers the matrix; call it where `extensions` is overridden. */
+export function describeCommentMatrix() {
   describe("setThread", () => {
-    describe(label, () => {
-      test.override("extensions", getExtensions);
-
+    describe("given a comment-only session", () => {
       describe.for<CommentCase>(cases)(
         "and $label content",
         ({ content, scenarios }) => {

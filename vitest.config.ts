@@ -2,11 +2,11 @@ import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 /**
- * Three projects, each with its own command — see
+ * Three projects, plus a `writeback` tag, each chosen by its own command — see
  * `docs/adr/0001-tests-are-a-bug-report.md`.
  *
- * `pnpm test` runs `repro` only, so the default run is the defect itself and
- * the all-green probes cannot bury it.
+ * `pnpm test` runs `repro` without the `writeback` tag, so the default run is
+ * the defects themselves and the all-green workaround halves cannot bury them.
  */
 export default defineConfig({
   resolve: {
@@ -19,6 +19,15 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./setup.ts"],
+    // The test names are the report, so print the whole tree.
+    reporters: ["tree"],
+    tags: [
+      {
+        name: "writeback",
+        description:
+          "The matrices with workaround/ added. Held out of `pnpm test`.",
+      },
+    ],
 
     projects: [
       {
@@ -27,15 +36,19 @@ export default defineConfig({
         test: { name: "utils", include: ["tests/utils/**/*.test.ts"] },
       },
       {
-        // The report itself. `tests/*.test.ts` is deliberately not `**` so the
-        // utils tests above are not collected twice.
+        // The workaround's own contract. Offline, and green.
         extends: true,
-        test: { name: "repro", include: ["tests/*.test.ts"] },
+        test: {
+          name: "workaround",
+          include: ["workaround/**/*.test.ts"],
+        },
       },
       {
-        // The same matrix with the stopgap applied. All green.
+        // The report itself. `tests/*.test.ts` is deliberately not `**` so the
+        // utils tests above are not collected twice. The matrices' `writeback`
+        // halves live here too; the scripts choose them by tag.
         extends: true,
-        test: { name: "probes", include: ["tests/probes/**/*.probe.ts"] },
+        test: { name: "repro", include: ["tests/*.test.ts"] },
       },
     ],
   },

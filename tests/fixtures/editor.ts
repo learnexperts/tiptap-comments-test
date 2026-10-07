@@ -19,6 +19,7 @@ export function withEditorFixtures<C extends EditorDeps>(test: TestAPI<C>) {
     $test: {
       provider: TiptapCollabProvider;
       syncedProvider: TiptapCollabProvider;
+      baseExtensions: Extensions;
       extensions: Extensions;
       editor: Editor;
     };
@@ -42,10 +43,13 @@ export function withEditorFixtures<C extends EditorDeps>(test: TestAPI<C>) {
       await waitForSync(provider, { timeout: 5_000 });
       await use(provider);
     },
-    async extensions({ syncedProvider }, use) {
-      // Both matrix suites override this; it is the stock configuration so an
-      // un-overridden test sees what an ordinary Tiptap application sees.
+    async baseExtensions({ syncedProvider }, use) {
+      // What an ordinary Tiptap application has. A suite may swap the schema.
       await use(stockExtensions({ syncedProvider }));
+    },
+    async extensions({ baseExtensions }, use) {
+      // A suite may add to the base, e.g. the workaround.
+      await use(baseExtensions);
     },
     async editor({ extensions }, use) {
       const element = document.createElement("div");
