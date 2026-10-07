@@ -1,14 +1,21 @@
-import { test } from "~/tests/fixtures";
+import { CollabWriteback } from "~/workaround/collabWriteback";
+import { describe, test } from "./fixtures";
 import { describeCommentMatrix } from "./utils/commentMatrix";
-import { stockExtensions } from "./utils/extensionSets";
 
 /**
  * The comment-only matrix on a plain Tiptap configuration — the full textStyle
- * kit, collaboration and comments, and nothing from `workaround/`. Failures
- * here are the bug as an ordinary user meets it.
+ * kit, collaboration and comments. Failures here are the bug as an ordinary
+ * user meets it.
  *
- * `tests/probes/writeback-fix.probe.ts` runs the identical matrix with the
- * workaround applied; the difference between the two is what it buys.
+ * The same matrix with the workaround added is tagged `writeback`: `pnpm test`
+ * leaves it out, `pnpm test:probes` runs only it.
  */
-test.override("extensions", stockExtensions);
 describeCommentMatrix();
+
+describe("with the writeback fix", { tags: ["writeback"] }, () => {
+  test.override("extensions", ({ baseExtensions }) => [
+    CollabWriteback,
+    ...baseExtensions,
+  ]);
+  describeCommentMatrix();
+});

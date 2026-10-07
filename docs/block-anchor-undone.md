@@ -49,7 +49,7 @@ If a stored element lacks a non-null default, for example from an importer that 
 
 ## What we tested
 
-[`tests/block-anchor.test.ts`](../tests/block-anchor.test.ts) runs the matrix against a real server on stock Tiptap. It asserts the behaviour we expect, so the cases that lose their anchor are red. [`tests/probes/block-anchor.probe.ts`](../tests/probes/block-anchor.probe.ts) runs the identical matrix with the workaround. Each case attaches the Yjs writes the comment produced as an annotation.
+[`tests/block-anchor.test.ts`](../tests/block-anchor.test.ts) runs the matrix against a real server on stock Tiptap. It asserts the behaviour we expect, so the cases that lose their anchor are red. The same file runs the identical matrix with the workaround, tagged `writeback` and left out of `pnpm test`. Each case attaches the Yjs writes the comment produced as an annotation.
 
 These variations make no difference:
 

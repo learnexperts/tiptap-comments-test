@@ -24,8 +24,8 @@ import { recordYWrites } from "./yWrites";
 
 // The block-anchor matrix (docs/block-anchor-undone.md): a comment-only
 // session anchors a thread on blocks whose stored attributes differ from what
-// y-prosemirror rebuilds. Run stock by tests/block-anchor.test.ts and with the
-// workaround by tests/probes/block-anchor.probe.ts.
+// y-prosemirror rebuilds. tests/block-anchor.test.ts runs it stock and with the
+// workaround.
 //
 // The server's JSON import gives every node of a type the key order of the
 // first one it meets, so a seed that fixes an order holds one block of a type.

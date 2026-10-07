@@ -1,4 +1,5 @@
-import { test } from "~/tests/fixtures";
+import { CollabWriteback } from "~/workaround/collabWriteback";
+import { describe, test } from "./fixtures";
 import { describeBlockMatrix } from "./utils/blockMatrix";
 import { blockSchema, stockExtensionsFor } from "./utils/extensionSets";
 
@@ -7,8 +8,17 @@ import { blockSchema, stockExtensionsFor } from "./utils/extensionSets";
  * the second defect as an ordinary user meets it: a comment on a block whose
  * stored attributes differ from the rebuilt copy loses its anchor.
  *
- * `tests/probes/block-anchor.probe.ts` runs the identical matrix with the
- * workaround applied.
+ * The same matrix with the workaround added is tagged `writeback`: `pnpm test`
+ * leaves it out, `pnpm test:probes` runs only it.
  */
-test.override("extensions", stockExtensionsFor(blockSchema));
+test.override("baseExtensions", stockExtensionsFor(blockSchema));
+
 describeBlockMatrix();
+
+describe("with the writeback fix", { tags: ["writeback"] }, () => {
+  test.override("extensions", ({ baseExtensions }) => [
+    CollabWriteback,
+    ...baseExtensions,
+  ]);
+  describeBlockMatrix();
+});

@@ -115,14 +115,13 @@ Each file makes one claim, and each **asserts the behaviour we expect** — so t
 | `tests/attribute-hashing.test.ts` | **The root cause.** y-prosemirror keys overlapping marks by a hash of their JSON, so an unrelated edit rewrites a mark nobody touched. **2 of 4 red.** | no |
 | `tests/writeback-null-attrs.test.ts` | **The mechanism.** That hashing makes the client write `null` `textStyle` attrs into Yjs the server never stored. **1 of 4 red**, and the same assertion passes with our stopgap applied. | no |
 | `tests/comment.test.ts` | **The bug.** On a comment-only connection, that write costs the thread anchor. Stock Tiptap, **4 of 34 red**. | yes |
-| `tests/probes/writeback-fix.probe.ts` | **The workaround.** The identical matrix with our stopgap applied, **34/34**. | yes |
 | `tests/block-anchor.test.ts` | **The second bug.** A block comment on a block whose stored attributes differ from the rebuilt copy (out of schema order, or missing a default) loses its anchor. Stock Tiptap, **6 of 10 red**. | yes |
-| `tests/probes/block-anchor.probe.ts` | **The workaround.** The identical block matrix with our stopgap applied, **10/10**. | yes |
+| `writeback`-tagged runs in both matrix files | **The workaround.** Each matrix again under `with the writeback fix`, which only adds `CollabWriteback` to the extensions: **34/34** and **10/10**. Left out of `pnpm test`; `pnpm test:probes` runs them. | yes |
 | `tests/utils/*.test.ts` | The selection helpers the matrix relies on place their ranges correctly. | no |
 | `workaround/*.test.ts` | Not part of the report: the stopgap's own contract — what it changes, and that it changes it only for the editor it is added to. Green. | no |
 
 Start with `tests/attribute-hashing.test.ts` — it needs no licence key, no server, and runs in under a second. Two of its four tests fail, and the failure message names the two keys that ought to have matched.
 
-The suites are Vitest projects, so each has its own command: `pnpm test` (repro), `pnpm test:utils`, `pnpm test:workaround`, `pnpm test:probes`, `pnpm test:all`.
+The suites are Vitest projects and a `writeback` tag, each with its own command: `pnpm test` (repro without the tag), `pnpm test:probes` (only the tag), `pnpm test:utils`, `pnpm test:workaround`, `pnpm test:all` (everything once). Running a matrix file directly runs both halves; add `--tags-filter='!writeback'` for the report alone.
 
 Full detail lives in [docs/comment-anchor-lost.md](docs/comment-anchor-lost.md) and [docs/block-anchor-undone.md](docs/block-anchor-undone.md). The interim workaround, its mechanisms and its ablation are in [workaround/README.md](workaround/README.md).

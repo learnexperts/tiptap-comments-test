@@ -81,7 +81,7 @@ On **read-only + `commentDocumentNames`**, the client may not persist that rewri
 
 ## The matrix
 
-`tests/comment.test.ts` and the probe run one shared definition (`tests/utils/commentMatrix.ts`), so the only variable between them is the extension list.
+`tests/comment.test.ts` runs one shared definition (`tests/utils/commentMatrix.ts`) twice, stock and with the workaround, so the only variable between them is the extension list.
 
 Five seeds — block-level, undecorated text, bolded text, text with a single style (`backgroundColor`), text with multiple styles (all four `textStyle` attrs). Four selection scenarios on the four text seeds — exact, partially overlapping (crossing one mark boundary), two threads on disjoint parts, two threads on overlapping parts. 17 cases, 34 tests.
 

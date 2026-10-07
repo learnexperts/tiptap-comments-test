@@ -8,7 +8,6 @@ import { FontSize } from "@tiptap/extension-text-style/font-size";
 import StarterKit from "@tiptap/starter-kit";
 import { Comments, CommentsKit } from "@tiptap-pro/extension-comments";
 import type { TiptapCollabProvider } from "@tiptap-pro/provider";
-import { CollabWriteback } from "~/workaround/collabWriteback";
 import { blockAnchors, blockNodes } from "./blockSchema";
 
 export type ExtensionDeps = { syncedProvider: TiptapCollabProvider };
@@ -64,16 +63,4 @@ export const stockExtensionsFor =
     ...comments(syncedProvider, schema),
   ];
 
-/** The stock setup plus `CollabWriteback`. */
-export const writebackFixExtensionsFor =
-  (schema: EditorSchema): Configuration =>
-  ({ syncedProvider }) => [
-    ...schema.nodes,
-    CollabWriteback,
-    collaboration(syncedProvider),
-    ...comments(syncedProvider, schema),
-  ];
-
 export const stockExtensions = stockExtensionsFor(textSchema);
-
-export const writebackFixExtensions = writebackFixExtensionsFor(textSchema);
