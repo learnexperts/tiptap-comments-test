@@ -402,7 +402,7 @@ describe("CollabWriteback", () => {
     });
   });
 
-  describe("mark key order", () => {
+  describe("an overlapping mark", () => {
     // Overlapping, so y-prosemirror keys it in Yjs by a hash of its JSON.
     const Tag = Mark.create({
       name: "tag",
@@ -470,6 +470,37 @@ describe("CollabWriteback", () => {
       editFirstBlock(attach(ydoc, [plainKit, Tag, CollabWriteback]));
 
       expect(before.map(([, keys]) => keys)).toEqual([["zeta", "alpha"]]);
+      expect(storedFormats(ydoc)).toEqual(before);
+    });
+
+    test("keeps its stored key when this schema adds an unset attribute", () => {
+      // The `attribute-hashing` scenario: a narrower client stored it.
+      const NarrowTag = Tag.extend({
+        addAttributes: () => ({ alpha: { default: null } }),
+      });
+      const ydoc = prosemirrorJSONToYDoc(
+        getSchema([plainKit, NarrowTag]),
+        {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: TARGET,
+                  marks: [{ type: "tag", attrs: { alpha: "a" } }],
+                },
+              ],
+            },
+          ],
+        },
+        FIELD,
+      );
+      const before = storedFormats(ydoc);
+
+      editFirstBlock(attach(ydoc, [plainKit, Tag, CollabWriteback]));
+
       expect(storedFormats(ydoc)).toEqual(before);
     });
   });
