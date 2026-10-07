@@ -21,9 +21,9 @@ Nothing else is exported for `tests/`. Biome enforces both directions: `tests/` 
 | File | Holds |
 |---|---|
 | `collabWriteback.ts` | The extension |
-| `markWriteback.ts` | Mechanism 1 |
-| `elementWriteback.ts` | Mechanisms 2 and 3 |
-| `writebackScope.ts` | Which writes are in scope: y-sync transactions on registered fragments, and each fragment's schema defaults |
+| `markWriteback.ts` | Mechanism 1, and mechanism 3 for marks |
+| `elementWriteback.ts` | Mechanism 2, and mechanism 3 for elements |
+| `writebackScope.ts` | Which writes are in scope (y-sync transactions on registered fragments), each fragment's node and mark defaults, and the one rule both halves of mechanism 3 apply |
 
 Its contract is tested offline beside it, in [`collabWriteback.test.ts`](collabWriteback.test.ts) (`pnpm test:workaround`, green, run on pre-push). The test is self-contained so it obeys the same rule and travels with the directory.
 
@@ -33,7 +33,7 @@ Its contract is tested offline beside it, in [`collabWriteback.test.ts`](collabW
 |---|---|---|---|
 | 1 | Every mark type's `create` leaves out attributes it was not given whose default is `null`. A mark read from Yjs keeps its stored key order; any other mark is sorted by key | [Inline anchor lost on `textStyle`](../docs/comment-anchor-lost.md) | the four single-style cases in the comment matrix; a block anchor on styled text; any mark whose attributes several extensions declare |
 | 2 | A rebuilt block takes the replaced element's key order and key set | [Block anchor undone](../docs/block-anchor-undone.md) | every block stored out of schema order or without a default |
-| 3 | A schema default is not written onto an existing element that lacks it | [Block anchor undone](../docs/block-anchor-undone.md) | an inline anchor on a block stored without a default; keeps 2's copies stable |
+| 3 | A write is skipped when it would say the same as what Yjs stores: a schema default for a key the stored element or mark value lacks | [Block anchor undone](../docs/block-anchor-undone.md); [inline anchor lost](../docs/comment-anchor-lost.md) | an inline anchor on a block stored without a default; keeps 2's copies stable; a mark stored without a non-null default |
 
 ### Ablation
 
@@ -58,21 +58,23 @@ Mechanism 1 was ablated when it covered only `textStyle` and sorted every mark's
 
 Both matrices are unchanged by the generalisation, and the contract test pins each half of the ordering rule.
 
-### Limits
-
-A stored mark **missing a non-null default** is still rewritten with that default the next time its text is re-synced. Leaving the default out of the mark would change what the editor renders, so mechanism 1 doesn't. The element-attribute equivalent is handled at the Yjs write (mechanism 3); marks have no such patch yet, because no case in either matrix needs one.
-
 **Why the two were deleted:**
 
 - **The sparsifier did harm.** It re-wrote every `textStyle` mark without its `null` keys. When Yjs already stores a mark with `null`s, written by a client with a wider schema, that is a `textStyle` write nobody made, which is exactly what a comment-only connection undoes.
 - **The retain strip was redundant.** With mechanism 1 the written value equals the stored one, and Yjs does not rewrite an equal format. A comment writes no `textStyle` without it.
 
+Mechanism 3 was ablated when it covered only elements. It now covers marks too, under the same rule (`saysTheSameAs` in `writebackScope.ts`). A mark keeps a non-null default it was not stored with, because the default is behaviour (a link's `target`) and must still render. Its write is where the default is dropped: a scoped `Y.Text.applyDelta` patch swaps in the stored value wherever the written one says the same, so Yjs sees an equal format and writes nothing. That is narrower than the deleted retain strip, which dropped any unchanged format, and no matrix case needs it; the contract test fails without it.
+
+### Limits
+
+An **overlapping mark** (several may cover one run, such as `inlineThread`) stored without a non-null default is still rewritten with it. y-prosemirror keys an overlapping mark in Yjs by a hash of its JSON, so the default changes the key before any value can be compared. No known overlapping mark hits this: `inlineThread`'s one attribute is always stored.
+
 ## When to delete it
 
 The two halves have independent removal conditions:
 
-- **Mechanism 1** goes when the inline defect is fixed: y-prosemirror compares mark values by meaning, or the comment-only check stops discarding the whole update.
-- **Mechanisms 2 and 3** go when the block defect is fixed: the comment-only check compares element attributes as a set and treats absent as default, or y-prosemirror stops rebuilding unchanged elements.
+- **Mechanism 1, and mechanism 3 for marks,** go when the inline defect is fixed: y-prosemirror compares mark values by meaning, or the comment-only check stops discarding the whole update.
+- **Mechanism 2, and mechanism 3 for elements,** go when the block defect is fixed: the comment-only check compares element attributes as a set and treats absent as default, or y-prosemirror stops rebuilding unchanged elements.
 
 The matching red tests in `pnpm test` turning green is the signal for each half.
 

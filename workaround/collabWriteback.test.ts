@@ -385,6 +385,27 @@ describe("CollabWriteback", () => {
       expect(storedAnnotations(ydoc)).toEqual([{ kind: "note" }]);
     });
 
+    test("does not write a non-null default the stored value lacks, but still renders it", () => {
+      const ydoc = prosemirrorJSONToYDoc(
+        getSchema([plainKit, annotation()]),
+        seed,
+        FIELD,
+      );
+      const editor = attach(ydoc, [
+        plainKit,
+        annotation({ status: { default: "open" } }),
+        InlineThread,
+        CollabWriteback,
+      ]);
+      commentOnTarget(editor);
+
+      expect(storedAnnotations(ydoc)).toEqual([{ kind: "note" }]);
+      const annotationMark = editor.state.doc
+        .nodeAt(1)
+        ?.marks.find((mark) => mark.type.name === "annotation");
+      expect(annotationMark?.attrs).toEqual({ kind: "note", status: "open" });
+    });
+
     test("keeps a non-null default a new mark was not given", () => {
       const editor = attach(new Y.Doc(), [
         plainKit,

@@ -1,7 +1,11 @@
 import { Extension } from "@tiptap/core";
 import type * as Y from "yjs";
 import { patchYXmlElementWrites } from "./elementWriteback";
-import { keepMarkSparse, tagValuesReadFromYjs } from "./markWriteback";
+import {
+  keepMarkSparse,
+  keepStoredMarkValues,
+  tagValuesReadFromYjs,
+} from "./markWriteback";
 import { registerFragment } from "./writebackScope";
 
 /**
@@ -18,7 +22,8 @@ import { registerFragment } from "./writebackScope";
  *    sorted by key.
  * 2. A block y-prosemirror rebuilds (wrapping it in `blockThread`) is written
  *    with the key order and key set of the element it replaces.
- * 3. A schema default is not written onto an existing element that lacks it.
+ * 3. A schema default is not written onto an element or a mark value that is
+ *    stored without it.
  */
 export const CollabWriteback = Extension.create({
   name: "collabWriteback",
@@ -33,6 +38,7 @@ export const CollabWriteback = Extension.create({
   onBeforeCreate() {
     patchYXmlElementWrites();
     tagValuesReadFromYjs();
+    keepStoredMarkValues();
     this.storage.unregister = registerFragment(
       collaborationFragment(this.editor.extensionManager.extensions),
       this.editor.schema,

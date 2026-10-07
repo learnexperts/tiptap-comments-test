@@ -3,7 +3,8 @@ import { ySyncPluginKey } from "@tiptap/y-tiptap";
 import type * as Y from "yjs";
 
 /**
- * Which Yjs writes the workaround may touch.
+ * Which Yjs writes the workaround may touch, and the one rule every patch
+ * applies to them.
  *
  * The Yjs patches have to be installed on shared prototypes, so on their own
  * they would apply to every collaborative editor in the process. This module
@@ -23,8 +24,14 @@ import type * as Y from "yjs";
 // biome-ignore lint/suspicious/noExplicitAny: see above.
 export type YType = Y.AbstractType<any>;
 
-/** Per node name, the non-null schema default of each attribute. */
-export type SchemaDefaults = ReadonlyMap<string, ReadonlyMap<string, unknown>>;
+/** One node or mark type's non-null attribute defaults, by attribute. */
+export type AttributeDefaults = ReadonlyMap<string, unknown>;
+
+/** A schema's non-null attribute defaults, by node and by mark name. */
+export interface SchemaDefaults {
+  nodes: ReadonlyMap<string, AttributeDefaults>;
+  marks: ReadonlyMap<string, AttributeDefaults>;
+}
 
 export interface WritebackScope {
   /** The y-sync transaction the write belongs to. */
@@ -56,7 +63,10 @@ export function registerFragment(
     existing.editors += 1;
   } else {
     registrations.set(fragment, {
-      defaults: schemaDefaults(schema),
+      defaults: {
+        nodes: defaultsOf(schema.nodes),
+        marks: defaultsOf(schema.marks),
+      },
       editors: 1,
     });
   }
@@ -93,9 +103,46 @@ export function writebackScope(type: YType): WritebackScope | null {
   return null;
 }
 
-function schemaDefaults(schema: Schema): SchemaDefaults {
-  const byNode = new Map<string, Map<string, unknown>>();
-  for (const [name, type] of Object.entries(schema.nodes)) {
+/**
+ * The rule every patch applies: whether `written` says the same as `stored`.
+ *
+ * True when `written` has every key `stored` has, with an equal value, and
+ * anything else it has is that attribute's schema default. A reader fills an
+ * absent attribute in with its default, so such a value adds nothing; writing
+ * it would only make a comment-only connection see an edit. Key order is not
+ * compared — the patches keep the stored order themselves.
+ */
+export function saysTheSameAs(
+  stored: Readonly<Record<string, unknown>>,
+  written: Readonly<Record<string, unknown>>,
+  defaults: AttributeDefaults | undefined,
+): boolean {
+  return (
+    Object.entries(stored).every(
+      ([key, value]) => key in written && sameValue(written[key], value),
+    ) &&
+    Object.entries(written).every(
+      ([key, value]) =>
+        key in stored ||
+        (defaults?.has(key) === true && sameValue(defaults.get(key), value)),
+    )
+  );
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
+  return (
+    left === right ||
+    (typeof left === "object" &&
+      typeof right === "object" &&
+      JSON.stringify(left) === JSON.stringify(right))
+  );
+}
+
+function defaultsOf(
+  types: Readonly<Record<string, { spec: { attrs?: object | null } }>>,
+): ReadonlyMap<string, AttributeDefaults> {
+  const byType = new Map<string, AttributeDefaults>();
+  for (const [name, type] of Object.entries(types)) {
     const defaults = new Map<string, unknown>();
     for (const [key, spec] of Object.entries(type.spec.attrs ?? {})) {
       const value = (spec as { default?: unknown } | undefined)?.default;
@@ -103,7 +150,7 @@ function schemaDefaults(schema: Schema): SchemaDefaults {
         defaults.set(key, value);
       }
     }
-    byNode.set(name, defaults);
+    byType.set(name, defaults);
   }
-  return byNode;
+  return byType;
 }

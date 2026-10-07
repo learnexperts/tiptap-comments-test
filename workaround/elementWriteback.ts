@@ -1,5 +1,9 @@
 import * as Y from "yjs";
-import { type SchemaDefaults, writebackScope } from "./writebackScope";
+import {
+  type SchemaDefaults,
+  saysTheSameAs,
+  writebackScope,
+} from "./writebackScope";
 
 /**
  * Element-attribute writes, for the block-anchor defect
@@ -16,8 +20,9 @@ import { type SchemaDefaults, writebackScope } from "./writebackScope";
  *   deletes them, and give each inserted copy that differs from a snapshot
  *   only by order, or by defaults the snapshot lacked, the snapshot's key order
  *   and key set. y-tiptap always deletes before it inserts the replacement.
- * - `Y.XmlElement.setAttribute`: skip writing a schema default onto an existing
- *   element that does not store the key. The aligned copy omits such defaults
+ * - `Y.XmlElement.setAttribute`: skip a write to an existing element when the
+ *   result would say the same as what it stores — that is, a schema default
+ *   for a key it does not store. The aligned copy omits such defaults
  *   too, and y-prosemirror would otherwise write them back on the next sync;
  *   it also keeps an inline anchor on such a block from rewriting the block.
  *
@@ -29,7 +34,7 @@ const PATCHED = Symbol("collabWritebackElements");
 /** An element as y-prosemirror deleted it, attributes in stored order. */
 interface StoredElement {
   nodeName: string;
-  attrs: [key: string, value: unknown][];
+  attrs: Record<string, unknown>;
 }
 
 type PrelimElement = Y.XmlElement & {
@@ -89,12 +94,17 @@ export function patchYXmlElementWrites(): void {
       this.doc !== null && this._prelimAttrs === null
         ? writebackScope(this)
         : null;
-    if (
-      scope &&
-      this.getAttribute(key) === undefined &&
-      isSchemaDefault(scope.defaults, this.nodeName, key, value)
-    ) {
-      return;
+    if (scope) {
+      const stored = this.getAttributes() as Record<string, unknown>;
+      if (
+        saysTheSameAs(
+          stored,
+          { ...stored, [key]: value },
+          scope.defaults.nodes.get(this.nodeName),
+        )
+      ) {
+        return;
+      }
     }
     // biome-ignore lint/suspicious/noExplicitAny: Yjs types the value by KV.
     return originalSetAttribute.call(this, key, value as any);
@@ -110,7 +120,7 @@ function collectStored(type: unknown, out: StoredElement[]): void {
   }
   out.push({
     nodeName: type.nodeName,
-    attrs: Object.entries(type.getAttributes() as Record<string, unknown>),
+    attrs: type.getAttributes() as Record<string, unknown>,
   });
   for (const child of type.toArray()) {
     collectStored(child, out);
@@ -132,62 +142,23 @@ function alignWithStored(
   const prelim = type as PrelimElement;
   const attrs = prelim._prelimAttrs;
   if (attrs) {
-    const index = stored.findIndex((entry) =>
-      duplicates(entry, type.nodeName, attrs, defaults),
+    const index = stored.findIndex(
+      (entry) =>
+        entry.nodeName === type.nodeName &&
+        saysTheSameAs(
+          entry.attrs,
+          Object.fromEntries(attrs),
+          defaults.nodes.get(type.nodeName),
+        ),
     );
     if (index !== -1) {
       const [twin] = stored.splice(index, 1);
       prelim._prelimAttrs = new Map(
-        twin.attrs.map(([key]) => [key, attrs.get(key)]),
+        Object.keys(twin.attrs).map((key) => [key, attrs.get(key)]),
       );
     }
   }
   for (const child of prelim._prelimContent ?? []) {
     alignWithStored(child, stored, defaults);
   }
-}
-
-/**
- * Whether a copy named `nodeName` with `attrs` holds the same content as
- * `stored`: every stored key with an equal value, and nothing else but schema
- * defaults.
- */
-function duplicates(
-  stored: StoredElement,
-  nodeName: string,
-  attrs: Map<string, unknown>,
-  defaults: SchemaDefaults,
-): boolean {
-  if (stored.nodeName !== nodeName) {
-    return false;
-  }
-  const storedKeys = new Set(stored.attrs.map(([key]) => key));
-  return (
-    stored.attrs.every(
-      ([key, value]) => attrs.has(key) && sameValue(attrs.get(key), value),
-    ) &&
-    [...attrs].every(
-      ([key, value]) =>
-        storedKeys.has(key) || isSchemaDefault(defaults, nodeName, key, value),
-    )
-  );
-}
-
-function isSchemaDefault(
-  defaults: SchemaDefaults,
-  nodeName: string,
-  key: string,
-  value: unknown,
-): boolean {
-  const byKey = defaults.get(nodeName);
-  return byKey?.has(key) === true && sameValue(byKey.get(key), value);
-}
-
-function sameValue(left: unknown, right: unknown): boolean {
-  return (
-    left === right ||
-    (typeof left === "object" &&
-      typeof right === "object" &&
-      JSON.stringify(left) === JSON.stringify(right))
-  );
 }

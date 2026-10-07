@@ -1,5 +1,10 @@
 import { Mark, type MarkType } from "@tiptap/pm/model";
 import * as Y from "yjs";
+import {
+  type AttributeDefaults,
+  saysTheSameAs,
+  writebackScope,
+} from "./writebackScope";
 
 /**
  * Mark-attribute writes, for the inline-anchor defect
@@ -18,7 +23,7 @@ import * as Y from "yjs";
  *   from Yjs is written back unchanged;
  * - **plus any it was not given whose default is non-null.** A `null` default
  *   means the same as absent, but a non-null default is behaviour (a link's
- *   `target`), so it stays.
+ *   `target`), so it stays on the ProseMirror mark and renders.
  *
  * And it orders them:
  *
@@ -32,10 +37,18 @@ import * as Y from "yjs";
  * A mark is "read from Yjs" when its attrs object is one `Y.Text.toDelta()`
  * returned: y-prosemirror passes those objects straight to `schema.mark`.
  * Tagging them changes nothing else, so that patch is not scoped.
+ *
+ * A non-null default the stored value lacks is kept off Yjs where the mark is
+ * written instead: `Y.Text.applyDelta`, scoped, swaps in the stored value
+ * wherever the written one says the same (`saysTheSameAs`), so Yjs sees an
+ * equal format and writes nothing. That is the rule element attributes follow
+ * too. It cannot reach an overlapping mark, whose Yjs key is a hash of its
+ * JSON: the default changes the key before any value is compared.
  */
 
 const CREATE_PATCHED = Symbol("collabWritebackMarkCreate");
 const TO_DELTA_PATCHED = Symbol("collabWritebackToDelta");
+const APPLY_DELTA_PATCHED = Symbol("collabWritebackApplyDelta");
 
 /**
  * `Mark`'s constructor is `@internal` in prosemirror-model, so it is absent
@@ -51,7 +64,17 @@ const MarkConstructor = Mark as unknown as new (
 /** Attribute values `Y.Text.toDelta()` has returned, as stored in Yjs. */
 const readFromYjs = new WeakSet<object>();
 
-type TextPrototype = typeof Y.Text.prototype & { [TO_DELTA_PATCHED]?: boolean };
+type TextPrototype = typeof Y.Text.prototype & {
+  [TO_DELTA_PATCHED]?: boolean;
+  [APPLY_DELTA_PATCHED]?: boolean;
+};
+
+interface DeltaOp {
+  insert?: unknown;
+  retain?: number;
+  delete?: number;
+  attributes?: Record<string, unknown>;
+}
 
 /** Tag every attribute value `Y.Text.toDelta()` returns. Once per process. */
 export function tagValuesReadFromYjs(): void {
@@ -112,4 +135,120 @@ export function keepMarkSparse(markType: MarkType): void {
       Object.fromEntries(keys.map((key) => [key, full[key]])),
     );
   };
+}
+
+/**
+ * Patch `Y.Text.applyDelta` so a mark value that says the same as the stored
+ * one is written as the stored one. Once per process; scoped per write.
+ *
+ * y-prosemirror writes marks with one retain-only delta over the whole text,
+ * one op per ProseMirror text node, each carrying every mark it has.
+ */
+export function keepStoredMarkValues(): void {
+  const text = Y.Text.prototype as TextPrototype;
+  if (text[APPLY_DELTA_PATCHED]) {
+    return;
+  }
+  text[APPLY_DELTA_PATCHED] = true;
+
+  const applyDelta = text.applyDelta;
+  text.applyDelta = function (
+    this: Y.Text,
+    delta: DeltaOp[],
+    options?: { sanitize?: boolean },
+  ) {
+    const scope = writebackScope(this);
+    const retainOnly =
+      Array.isArray(delta) &&
+      delta.every((op) => op.retain !== undefined && op.insert === undefined);
+    return applyDelta.call(
+      this,
+      scope && retainOnly
+        ? withStoredValues(this, delta, scope.defaults.marks)
+        : delta,
+      options,
+    );
+  };
+}
+
+/** `delta`, split along the stored runs, preferring stored mark values. */
+function withStoredValues(
+  text: Y.Text,
+  delta: DeltaOp[],
+  defaults: ReadonlyMap<string, AttributeDefaults>,
+): DeltaOp[] {
+  const runs = (text.toDelta() as DeltaOp[]).map((op) => ({
+    length: typeof op.insert === "string" ? op.insert.length : 1,
+    attributes: op.attributes ?? {},
+  }));
+
+  const out: DeltaOp[] = [];
+  let index = 0;
+  for (const op of delta) {
+    const written = op.attributes;
+    let remaining = op.retain ?? 0;
+    if (!written) {
+      out.push(op);
+      index += remaining;
+      continue;
+    }
+    while (remaining > 0) {
+      const run = runAt(runs, index);
+      const length = Math.min(remaining, run.length);
+      out.push({
+        retain: length,
+        attributes: preferStored(written, run.attributes, defaults),
+      });
+      index += length;
+      remaining -= length;
+    }
+  }
+  return out;
+}
+
+/** The stored run at `index`, with the length left in it from there. */
+function runAt(
+  runs: Array<{ length: number; attributes: Record<string, unknown> }>,
+  index: number,
+) {
+  let start = 0;
+  for (const run of runs) {
+    if (index < start + run.length) {
+      return {
+        attributes: run.attributes,
+        length: start + run.length - index,
+      };
+    }
+    start += run.length;
+  }
+  return { attributes: {}, length: Number.POSITIVE_INFINITY };
+}
+
+/** `written`, with each mark value that says the same as `stored`'s swapped for it. */
+function preferStored(
+  written: Record<string, unknown>,
+  stored: Record<string, unknown>,
+  defaults: ReadonlyMap<string, AttributeDefaults>,
+): Record<string, unknown> {
+  const result = { ...written };
+  for (const [key, value] of Object.entries(written)) {
+    const storedValue = stored[key];
+    if (
+      isRecord(value) &&
+      isRecord(storedValue) &&
+      saysTheSameAs(storedValue, value, defaults.get(markName(key)))
+    ) {
+      result[key] = storedValue;
+    }
+  }
+  return result;
+}
+
+/** The mark name behind a Yjs format key (`inlineThread--a1b2c3d4` → `inlineThread`). */
+function markName(key: string): string {
+  return key.replace(/--[a-zA-Z0-9+/=]{8}$/, "");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
