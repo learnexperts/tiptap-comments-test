@@ -1,6 +1,6 @@
 import { CollabWriteback } from "~/workaround/collabWriteback";
-import { describe, test } from "./fixtures";
-import { describeCommentMatrix } from "./utils/commentMatrix";
+import { describe, test } from "../fixtures";
+import { describeCommentMatrix } from "../utils/commentMatrix";
 
 /**
  * The comment-only matrix on a plain Tiptap configuration — the full textStyle

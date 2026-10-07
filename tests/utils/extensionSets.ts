@@ -1,5 +1,7 @@
 import type { Extensions } from "@tiptap/core";
-import Collaboration from "@tiptap/extension-collaboration";
+import Collaboration, {
+  type CollaborationOptions,
+} from "@tiptap/extension-collaboration";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { BackgroundColor } from "@tiptap/extension-text-style/background-color";
 import { Color } from "@tiptap/extension-text-style/color";
@@ -39,8 +41,16 @@ export const blockSchema: EditorSchema = {
   anchors: blockAnchors,
 };
 
-const collaboration = (provider: TiptapCollabProvider) =>
-  Collaboration.configure({ provider, document: provider.document });
+/** Where Collaboration binds the editor in the provider's document. */
+export type Binding = (
+  provider: TiptapCollabProvider,
+) => Partial<CollaborationOptions>;
+
+/** The root fragment `default`. */
+export const rootDefault: Binding = (provider) => ({
+  provider,
+  document: provider.document,
+});
 
 const commentsOptions = (provider: TiptapCollabProvider) => ({
   provider,
@@ -56,10 +66,10 @@ const comments = (provider: TiptapCollabProvider, schema: EditorSchema) =>
 
 /** A plain Tiptap setup: nothing from `workaround/`. */
 export const stockExtensionsFor =
-  (schema: EditorSchema): Configuration =>
+  (schema: EditorSchema, bind: Binding = rootDefault): Configuration =>
   ({ syncedProvider }) => [
     ...schema.nodes,
-    collaboration(syncedProvider),
+    Collaboration.configure(bind(syncedProvider)),
     ...comments(syncedProvider, schema),
   ];
 

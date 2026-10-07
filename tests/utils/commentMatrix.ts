@@ -13,7 +13,7 @@ import { createThreads, type SelectionFactory } from "./thread";
  * scenarios, shared by every suite that wants to run it under a particular
  * editor configuration.
  *
- * `tests/comment.test.ts` runs it stock, where the failures are the bug as an
+ * `tests/inline/comment.test.ts` runs it stock, where the failures are the bug as an
  * ordinary user meets it, and again with the workaround to show what that
  * recovers. Keeping both on one definition means they cannot drift.
  */
@@ -173,7 +173,11 @@ export function describeCommentMatrix() {
           describe.for<SelectionScenario>(scenarios)(
             "and $label",
             ({ plan }) => {
-              test("creates the thread locally", async ({ editor }) => {
+              test("keeps the thread anchor after sync", async ({
+                editor,
+                provider,
+                annotate,
+              }) => {
                 const selections = plan(editor);
                 const threadIds = await createThreads(editor, selections);
 
@@ -181,21 +185,6 @@ export function describeCommentMatrix() {
                   new Set(threadIds).size,
                   "thread ids should be distinct",
                 ).toBe(selections.length);
-
-                for (const threadId of threadIds) {
-                  expect(
-                    threadExistsInDocument(editor, threadId),
-                    `Thread ${threadId} was not anchored in the document`,
-                  ).toBe(true);
-                }
-              });
-
-              test("keeps the thread anchor after sync", async ({
-                editor,
-                provider,
-                annotate,
-              }) => {
-                const threadIds = await createThreads(editor, plan(editor));
 
                 for (const threadId of threadIds) {
                   expect(

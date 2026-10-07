@@ -1,7 +1,7 @@
 import { CollabWriteback } from "~/workaround/collabWriteback";
-import { describe, test } from "./fixtures";
-import { describeBlockMatrix } from "./utils/blockMatrix";
-import { blockSchema, stockExtensionsFor } from "./utils/extensionSets";
+import { describe, test } from "../fixtures";
+import { describeBlockMatrix } from "../utils/blockMatrix";
+import { blockSchema, stockExtensionsFor } from "../utils/extensionSets";
 
 /**
  * The block-anchor matrix on a plain Tiptap configuration. Failures here are

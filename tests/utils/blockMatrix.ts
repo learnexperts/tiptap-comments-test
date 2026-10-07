@@ -11,7 +11,7 @@ import { describe, expect, test } from "~/tests/fixtures";
 import { createToken } from "./createToken";
 import { blockSchema, stockExtensionsFor } from "./extensionSets";
 import { waitUntilFlushed } from "./flushChanges";
-import { query, queryOrFail } from "./query";
+import { queryOrFail } from "./query";
 import {
   asNodeSelection,
   nodeRange,
@@ -24,7 +24,7 @@ import { recordYWrites } from "./yWrites";
 
 // The block-anchor matrix (docs/block-anchor-undone.md): a comment-only
 // session anchors a thread on blocks whose stored attributes differ from what
-// y-prosemirror rebuilds. tests/block-anchor.test.ts runs it stock and with the
+// y-prosemirror rebuilds. tests/block/block-anchor.test.ts runs it stock and with the
 // workaround.
 //
 // The server's JSON import gives every node of a type the key order of the
@@ -73,6 +73,16 @@ const selectBlock =
   (editor: Editor): Selection =>
     asNodeSelection(editor.state.doc, targetBlock(editor, nodeType));
 
+const selectEmptyParagraph = (editor: Editor): Selection =>
+  asNodeSelection(
+    editor.state.doc,
+    queryOrFail(
+      editor.$doc,
+      (node) => node.type.name === "paragraph" && node.childCount === 0,
+      "No empty paragraph",
+    ),
+  );
+
 const selectTextIn =
   (nodeType: string) =>
   (editor: Editor): Selection => {
@@ -107,6 +117,21 @@ const cases: BlockCase[] = [
     label: "text in a paragraph stored without its marginLeft default",
     seed: doc(paragraph({})),
     anchorOn: selectTextIn("paragraph"),
+  },
+  {
+    label: "a paragraph seeded empty",
+    seed: doc(BEFORE, { type: "paragraph", attrs: { marginLeft: 0 } }),
+    anchorOn: selectEmptyParagraph,
+  },
+  {
+    // y-prosemirror empties the paragraph's text rather than deleting it.
+    label: "a paragraph emptied by deleting its text",
+    seed: doc(BEFORE, paragraph({ marginLeft: 0 })),
+    editFirst: (editor) => {
+      const { from, to } = nodeRange(targetBlock(editor, "paragraph"));
+      editor.commands.deleteRange({ from: from + 1, to: to - 1 });
+    },
+    anchorOn: selectEmptyParagraph,
   },
   {
     label: "a horizontal rule",
@@ -212,11 +237,10 @@ async function editAsEditor(
   try {
     edit(editor);
     await waitUntilFlushed(provider);
-    await vi.waitUntil(
-      () =>
-        query(commenter.$doc, (node) => node.textContent === TARGET) !== null,
-      { timeout: 5_000 },
-    );
+    const edited = JSON.stringify(editor.getJSON());
+    await vi.waitUntil(() => JSON.stringify(commenter.getJSON()) === edited, {
+      timeout: 5_000,
+    });
   } finally {
     editor.destroy();
     provider.destroy();

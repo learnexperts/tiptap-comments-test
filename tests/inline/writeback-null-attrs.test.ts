@@ -1,9 +1,4 @@
-import {
-  Editor,
-  type Extensions,
-  getSchema,
-  type JSONContent,
-} from "@tiptap/core";
+import { Editor, getSchema, type JSONContent } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { BackgroundColor } from "@tiptap/extension-text-style/background-color";
@@ -15,8 +10,7 @@ import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
 import { InlineThread } from "@tiptap-pro/extension-comments";
 import { afterEach, describe, expect, test } from "vitest";
 import type * as Y from "yjs";
-import { CollabWriteback } from "~/workaround/collabWriteback";
-import { yTextSegments } from "./utils/yMarkSnapshots";
+import { yTextSegments } from "../utils/yMarkSnapshots";
 
 /**
  * The mechanism behind the lost comment anchor, with no collab server involved.
@@ -29,16 +23,10 @@ import { yTextSegments } from "./utils/yMarkSnapshots";
  *
  * On a comment-only connection the server rejects that write, and the thread
  * anchor is dropped with it. That final step needs the integration test in
- * `tests/comment.test.ts`; everything leading up to it is shown here.
+ * `tests/inline/comment.test.ts`; the write itself is shown here, offline.
  *
- * The third test asserts the behaviour we expect and currently fails. The
- * fourth makes the identical assertion with our stopgap applied, and passes —
- * the pair is the whole argument in two tests.
- *
- * The underlying cause is that y-prosemirror compares structured attribute
- * values by shape rather than by meaning — see "Root cause" in the README. The
- * densified bag below is one way to produce a shape difference; reordering keys
- * or removing a field would do the same.
+ * The second test asserts the behaviour we expect and currently fails. See
+ * docs/comment-anchor-lost.md for why the write happens.
  */
 
 const FIELD = "default";
@@ -81,6 +69,8 @@ const seedContent: JSONContent = {
   ],
 };
 
+const STORED = [{ backgroundColor: "#E73E3E" }];
+
 const editors: Array<() => void> = [];
 
 afterEach(() => {
@@ -100,7 +90,7 @@ function seedAsServerWould() {
   return prosemirrorJSONToYDoc(storedSchema, seedContent, FIELD);
 }
 
-function attachClient(ydoc: Y.Doc, extra: Extensions = []) {
+function attachClient(ydoc: Y.Doc) {
   const element = document.createElement("div");
   document.body.appendChild(element);
 
@@ -111,7 +101,6 @@ function attachClient(ydoc: Y.Doc, extra: Extensions = []) {
       ...clientKit,
       Collaboration.configure({ document: ydoc, field: FIELD }),
       InlineThread,
-      ...extra,
     ],
   });
 
@@ -138,23 +127,22 @@ function setThreadOnHighlightedRun(editor: Editor) {
 }
 
 describe("comment-only writeback rewrites textStyle attrs", () => {
-  test("the server stores only the attribute that was set", () => {
-    expect(storedTextStyle(seedAsServerWould())).toEqual([
-      { backgroundColor: "#E73E3E" },
-    ]);
-  });
-
   test("opening the document leaves the stored attrs alone", () => {
     const ydoc = seedAsServerWould();
     attachClient(ydoc);
 
-    expect(storedTextStyle(ydoc)).toEqual([{ backgroundColor: "#E73E3E" }]);
+    expect(storedTextStyle(ydoc)).toEqual(STORED);
   });
 
   test("setting an inline thread leaves the stored attrs alone", () => {
     const ydoc = seedAsServerWould();
+    const editor = attachClient(ydoc);
+    expect(
+      storedTextStyle(ydoc),
+      "the server stores only what was set",
+    ).toEqual(STORED);
 
-    setThreadOnHighlightedRun(attachClient(ydoc));
+    setThreadOnHighlightedRun(editor);
 
     // Adding a comment is not a styling change. Today this writes
     // `fontFamily: null, fontSize: null, color: null` alongside the value the
@@ -162,14 +150,6 @@ describe("comment-only writeback rewrites textStyle attrs", () => {
     expect(
       storedTextStyle(ydoc),
       "adding a comment must not rewrite textStyle",
-    ).toEqual([{ backgroundColor: "#E73E3E" }]);
-  });
-
-  test("CollabWriteback keeps the stored attrs intact", () => {
-    const ydoc = seedAsServerWould();
-
-    setThreadOnHighlightedRun(attachClient(ydoc, [CollabWriteback]));
-
-    expect(storedTextStyle(ydoc)).toEqual([{ backgroundColor: "#E73E3E" }]);
+    ).toEqual(STORED);
   });
 });

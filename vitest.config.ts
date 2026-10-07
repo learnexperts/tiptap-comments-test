@@ -21,6 +21,8 @@ export default defineConfig({
     setupFiles: ["./setup.ts"],
     // The test names are the report, so print the whole tree.
     reporters: ["tree"],
+    // A tag filter skips the other half rather than dropping it; don't list it.
+    hideSkippedTests: true,
     tags: [
       {
         name: "writeback",
@@ -44,11 +46,13 @@ export default defineConfig({
         },
       },
       {
-        // The report itself. `tests/*.test.ts` is deliberately not `**` so the
-        // utils tests above are not collected twice. The matrices' `writeback`
+        // The report itself, one directory per issue. The matrices' `writeback`
         // halves live here too; the scripts choose them by tag.
         extends: true,
-        test: { name: "repro", include: ["tests/*.test.ts"] },
+        test: {
+          name: "repro",
+          include: ["tests/{inline,block,fragments}/*.test.ts"],
+        },
       },
     ],
   },
