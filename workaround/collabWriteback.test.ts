@@ -113,6 +113,19 @@ function storedKeyOrder(ydoc: Y.Doc): string[][] {
   return order;
 }
 
+/** Each stored element as `[nodeName, ...children]`, a text as `#text`. */
+function storedTree(ydoc: Y.Doc): unknown[] {
+  const visit = (type: Y.XmlFragment | Y.XmlElement): unknown[] =>
+    type
+      .toArray()
+      .map((child) =>
+        child instanceof Y.XmlElement
+          ? [child.nodeName, ...visit(child)]
+          : "#text",
+      );
+  return visit(ydoc.getXmlFragment(FIELD));
+}
+
 function storedTextStyles(ydoc: Y.Doc): unknown[] {
   const styles: unknown[] = [];
   const visit = (type: Y.XmlFragment | Y.XmlElement) => {
@@ -249,6 +262,55 @@ describe("CollabWriteback", () => {
         ["blockThread", "data-thread-id"],
         ["codeBlock", "language"],
       ]);
+    });
+
+    describe("emptied of its text", () => {
+      // y-prosemirror never writes back a document that is one empty paragraph.
+      function storedBlockBeforeARule() {
+        const ydoc = storedBlock("paragraph", [["marginLeft", 0]]);
+        ydoc.getXmlFragment(FIELD).push([new Y.XmlElement("horizontalRule")]);
+        return ydoc;
+      }
+
+      // y-prosemirror empties a block's only text rather than deleting it.
+      function emptyFirstBlock(editor: Editor, ydoc: Y.Doc) {
+        editor.commands.deleteRange({ from: 1, to: 1 + TARGET.length });
+        expect(storedTree(ydoc)).toEqual([
+          ["paragraph", "#text"],
+          ["horizontalRule"],
+        ]);
+        expect(
+          (ydoc.getXmlFragment(FIELD).get(0) as Y.XmlElement).toString(),
+        ).toBe('<paragraph marginLeft="0"></paragraph>');
+      }
+
+      test("rebuilds it without its empty text on a stock editor", () => {
+        const ydoc = storedBlockBeforeARule();
+        const editor = attach(ydoc, [...blockNodes, ...blockAnchors]);
+        emptyFirstBlock(editor, ydoc);
+        wrapFirstBlock(editor);
+
+        expect(storedTree(ydoc)).toEqual([
+          ["blockThread", ["paragraph"]],
+          ["horizontalRule"],
+        ]);
+      });
+
+      test("keeps its empty text with CollabWriteback", () => {
+        const ydoc = storedBlockBeforeARule();
+        const editor = attach(ydoc, [
+          ...blockNodes,
+          ...blockAnchors,
+          CollabWriteback,
+        ]);
+        emptyFirstBlock(editor, ydoc);
+        wrapFirstBlock(editor);
+
+        expect(storedTree(ydoc)).toEqual([
+          ["blockThread", ["paragraph", "#text"]],
+          ["horizontalRule"],
+        ]);
+      });
     });
   });
 
@@ -439,7 +501,7 @@ describe("CollabWriteback", () => {
     });
 
     test("keeps its stored key when this schema adds an unset attribute", () => {
-      // The `attribute-hashing` scenario: a narrower client stored it.
+      // A narrower client stored it.
       const NarrowTag = Tag.extend({
         addAttributes: () => ({ alpha: { default: null } }),
       });

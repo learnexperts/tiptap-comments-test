@@ -6,7 +6,7 @@ import {
   writebackScope,
 } from "./writebackScope";
 
-// Mechanisms 2 and 3 for elements; see README.md. y-prosemirror rebuilds a
+// Mechanisms 2 to 4 for elements; see README.md. y-prosemirror rebuilds a
 // block (to wrap it) as delete-then-insert, so each inserted copy is matched
 // against what the same transaction deleted.
 
@@ -14,6 +14,8 @@ import {
 interface StoredElement {
   nodeName: string;
   attrs: Record<string, unknown>;
+  /** y-prosemirror empties a block's only text rather than deleting it. */
+  keepsEmptyText: boolean;
 }
 
 // Yjs internals: a not-yet-integrated element keeps its attributes and
@@ -77,10 +79,18 @@ function snapshot(type: unknown, into: StoredElement[]): void {
   if (!(type instanceof Y.XmlElement)) {
     return;
   }
-  into.push({ nodeName: type.nodeName, attrs: type.getAttributes() });
+  into.push({
+    nodeName: type.nodeName,
+    attrs: type.getAttributes(),
+    keepsEmptyText: type.length === 1 && isEmptyText(type.get(0)),
+  });
   for (const child of type.toArray()) {
     snapshot(child, into);
   }
+}
+
+function isEmptyText(type: unknown): boolean {
+  return type instanceof Y.XmlText && type.length === 0;
 }
 
 /** Gives `copy`, and each copy below it, the shape of the element it duplicates. */
@@ -109,6 +119,9 @@ function matchStoredShape(
       prelim._prelimAttrs = new Map(
         Object.keys(stored.attrs).map((key) => [key, attrs.get(key)]),
       );
+      if (stored.keepsEmptyText && prelim._prelimContent?.length === 0) {
+        prelim._prelimContent.push(new Y.XmlText());
+      }
     }
   }
   for (const child of prelim._prelimContent ?? []) {

@@ -22,21 +22,22 @@ Nothing else is exported for `tests/`. Biome enforces both directions: `tests/` 
 |---|---|
 | `collabWriteback.ts` | The extension |
 | `markWriteback.ts` | Mechanism 1 |
-| `elementWriteback.ts` | Mechanisms 2 and 3 |
-| `writebackScope.ts` | Which writes are in scope (y-sync transactions on registered fragments), each fragment's node and mark defaults, and `saysTheSameAs`, the rule all three mechanisms apply |
+| `elementWriteback.ts` | Mechanisms 2, 3 and 4 |
+| `writebackScope.ts` | Which writes are in scope (y-sync transactions on registered fragments), each fragment's node and mark defaults, and `saysTheSameAs`, the rule every mechanism applies |
 | `patchMethod.ts` | Replaces a prototype method once, however many editors install it |
 
 Its contract is tested offline beside it, in [`collabWriteback.test.ts`](collabWriteback.test.ts) (`pnpm test:workaround`, green, run on pre-push). The test is self-contained so it obeys the same rule and travels with the directory.
 
 ## Mechanisms
 
-Every mechanism applies one rule: a write is dropped when it would **say the same** as what Yjs stores. That means every stored attribute unchanged, and anything extra at its schema default, `null` included. None of them changes a ProseMirror node or mark. The app sees exactly what stock Tiptap gives it; only what is written to Yjs changes.
+Every mechanism applies one rule: a write that would **say the same** as what Yjs stores is written as it is stored, or not at all. That means every stored attribute unchanged, and anything extra at its schema default, `null` included. None of them changes a ProseMirror node or mark. The app sees exactly what stock Tiptap gives it; only what is written to Yjs changes.
 
 | # | Mechanism | Defect | Needed by |
 |---|---|---|---|
 | 1 | A mark written to `Y.Text` that says the same as the stored one is left as stored. For an overlapping mark that means keeping the stored key, see below | [Inline anchor lost on `textStyle`](../docs/comment-anchor-lost.md) | the four single-style cases in the comment matrix; a block anchor on styled text; any mark stored sparser than this client's schema |
 | 2 | A rebuilt block takes the replaced element's key order and key set | [Block anchor undone](../docs/block-anchor-undone.md) | every block stored out of schema order or without a default |
 | 3 | A schema default is not written onto a stored element that lacks it | [Block anchor undone](../docs/block-anchor-undone.md) | an inline anchor on a block stored without a default; keeps 2's copies stable |
+| 4 | A rebuilt block keeps the empty text the replaced element held | [Block anchor undone](../docs/block-anchor-undone.md#an-emptied-block-keeps-an-empty-text) | a block anchor on a paragraph whose text was deleted |
 
 ### Overlapping marks
 
@@ -55,8 +56,9 @@ Each mechanism was removed in turn, and the comment matrix, the block probe and 
 | sparsifier and retain strip together | 34/34 | 23/23 | — | confirms both redundant |
 | 2 key-order alignment | 34/34 | **6 red** | — | kept |
 | 3 default skip | 34/34 | **1 red** | — | kept |
+| 4 empty text kept | — | block matrix: **1 red** | 1 red | kept |
 
-The block probe here is the investigation's original 23 comment-only cases, which `tests/utils/blockMatrix.ts` distils.
+The comment matrix then had 34 tests, two per case; it now has one per case, 17. The block probe here is the investigation's original 23 comment-only cases, which `tests/utils/blockMatrix.ts` distils. Mechanism 4 came later and was ablated against that matrix instead; the comment matrix wraps no emptied block, so it was not re-run.
 
 - **The sparsifier did harm.** It re-wrote every `textStyle` mark without its `null` keys. When Yjs already stores a mark with `null`s, written by a client with a wider schema, that is a `textStyle` write nobody made, which is exactly what a comment-only connection undoes.
 - **The retain strip was redundant** next to the `create` patch, which made the written value equal the stored one.
@@ -68,7 +70,9 @@ The block probe here is the investigation's original 23 comment-only cases, whic
 The two defects have independent removal conditions:
 
 - **Mechanism 1** goes when the inline defect is fixed: y-prosemirror compares mark values by meaning, or the comment-only check stops discarding the whole update.
-- **Mechanisms 2 and 3** go when the block defect is fixed: the comment-only check compares element attributes as a set and treats absent as default, or y-prosemirror stops rebuilding unchanged elements.
+- **Mechanisms 2 to 4** go when the block defect is fixed: the comment-only check compares element attributes as a set, treats absent as default and an empty text as no text, or y-prosemirror stops rebuilding unchanged elements.
+
+It does not cover the other two ways a guest's block comment is undone: `trailingNode` adding a paragraph ([consumer-side](../docs/block-anchor-trailing-node.md)), and a fragment the server does not know ([server-side](../docs/block-anchor-fragments.md)). Neither is a write that says the same as what Yjs stores.
 
 The matching red tests in `pnpm test` turning green is the signal for each.
 
@@ -78,4 +82,4 @@ lex-frontend runs a copy of this directory. Copy the `.ts` files as they are, te
 
 - **Formatting:** lex-frontend's formatter will reformat the copy. Accept the format-only diff, and compare copies with a diff that ignores whitespace and semicolons.
 - **Tests:** `collabWriteback.test.ts` comes with the copy and tests through `CollabWriteback` on real editors. Replace lex-frontend's tests of internal helpers with it; they break on every internal change.
-- **Last synced:** not yet. lex-frontend's copy predates the element writeback and the per-fragment scope.
+- **Last synced:** not recorded here; the commit is in the header of lex-frontend's copy. Any copy taken before mechanism 4 rebuilds an emptied block without its empty text, so re-copy once it lands.
