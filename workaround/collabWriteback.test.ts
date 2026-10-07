@@ -383,23 +383,6 @@ describe("CollabWriteback", () => {
         ?.marks.find((mark) => mark.type.name === "annotation");
       expect(annotationMark?.attrs).toEqual({ kind: "note", status: "open" });
     });
-
-    test("keeps a non-null default a new mark was not given", () => {
-      const editor = attach(new Y.Doc(), [
-        plainKit,
-        annotation({ author: { default: null }, status: { default: "open" } }),
-        CollabWriteback,
-      ]);
-      editor.commands.insertContent(TARGET);
-      editor
-        .chain()
-        .setTextSelection({ from: 1, to: 1 + TARGET.length })
-        .setMark("annotation", { kind: "note" })
-        .run();
-
-      const mark = editor.state.doc.nodeAt(1)?.marks[0];
-      expect(mark?.attrs).toEqual({ kind: "note", status: "open" });
-    });
   });
 
   describe("an overlapping mark", () => {
@@ -426,24 +409,6 @@ describe("CollabWriteback", () => {
           ),
         );
     }
-
-    test("sorts a new mark's attributes by key", () => {
-      const ydoc = new Y.Doc();
-      const editor = attach(ydoc, [plainKit, Tag, CollabWriteback]);
-      editor.commands.insertContent(TARGET);
-      editor
-        .chain()
-        .setTextSelection({ from: 1, to: 1 + TARGET.length })
-        .setMark("tag", { zeta: "z", alpha: "a" })
-        .run();
-
-      expect(
-        Object.keys(editor.state.doc.nodeAt(1)?.marks[0]?.attrs ?? {}),
-      ).toEqual(["alpha", "zeta"]);
-      expect(storedFormats(ydoc).map(([, keys]) => keys)).toEqual([
-        ["alpha", "zeta"],
-      ]);
-    });
 
     test("keeps the stored order of a mark read from Yjs", () => {
       const ydoc = prosemirrorJSONToYDoc(

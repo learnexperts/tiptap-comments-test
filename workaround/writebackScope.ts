@@ -10,7 +10,7 @@ import type * as Y from "yjs";
 // biome-ignore lint/suspicious/noExplicitAny: AbstractType is invariant in its event type.
 export type YType = Y.AbstractType<any>;
 
-/** Non-null attribute defaults of one node or mark type. */
+/** Declared attribute defaults of one node or mark type, `null`s included. */
 export type AttributeDefaults = ReadonlyMap<string, unknown>;
 
 export interface SchemaDefaults {
@@ -37,8 +37,8 @@ export function registerFragment(
 ): () => void {
   const registration = registrations.get(fragment) ?? {
     defaults: {
-      nodes: nonNullDefaults(schema.nodes),
-      marks: nonNullDefaults(schema.marks),
+      nodes: declaredDefaults(schema.nodes),
+      marks: declaredDefaults(schema.marks),
     },
     editors: 0,
   };
@@ -103,7 +103,7 @@ function sameValue(left: unknown, right: unknown): boolean {
   );
 }
 
-function nonNullDefaults(
+function declaredDefaults(
   types: Readonly<Record<string, { spec: { attrs?: object | null } }>>,
 ): ReadonlyMap<string, AttributeDefaults> {
   return new Map(
@@ -115,7 +115,7 @@ function nonNullDefaults(
             key,
             (spec as { default?: unknown }).default,
           ])
-          .filter(([, value]) => value !== null && value !== undefined),
+          .filter(([, value]) => value !== undefined),
       ),
     ]),
   );

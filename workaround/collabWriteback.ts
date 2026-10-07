@@ -1,7 +1,7 @@
 import { type Editor, Extension } from "@tiptap/core";
 import type * as Y from "yjs";
 import { patchElementWrites } from "./elementWriteback";
-import { keepMarkSparse, patchMarkWrites } from "./markWriteback";
+import { patchMarkWrites } from "./markWriteback";
 import { registerFragment } from "./writebackScope";
 
 /**
@@ -17,9 +17,6 @@ export const CollabWriteback = Extension.create({
   onBeforeCreate() {
     patchElementWrites();
     patchMarkWrites();
-    for (const markType of Object.values(this.editor.schema.marks)) {
-      keepMarkSparse(markType);
-    }
     this.storage.unregister = registerFragment(
       collaborationFragment(this.editor),
       this.editor.schema,
