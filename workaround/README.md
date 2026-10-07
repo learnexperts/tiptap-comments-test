@@ -24,7 +24,7 @@ Nothing else is exported for `tests/`. Biome enforces both directions: `tests/` 
 | `elementWriteback.ts` | Mechanisms 2 and 3 |
 | `writebackScope.ts` | Which writes are in scope: y-sync transactions on registered fragments, and each fragment's schema defaults |
 
-Its contract is tested offline in [`tests/workaround/`](../tests/workaround/collabWriteback.test.ts) (`pnpm test:workaround`, green, run on pre-push).
+Its contract is tested offline beside it, in [`collabWriteback.test.ts`](collabWriteback.test.ts) (`pnpm test:workaround`, green, run on pre-push). The test is self-contained so it obeys the same rule and travels with the directory.
 
 ## Mechanisms
 
@@ -66,8 +66,8 @@ The matching red tests in `pnpm test` turning green is the signal for each half.
 
 ## Copying into lex-frontend
 
-lex-frontend runs a copy of this directory. Copy the three `.ts` files as they are, and record the source commit in the header comment of the copy's `collabWriteback.ts`. Don't hand-merge.
+lex-frontend runs a copy of this directory. Copy the `.ts` files as they are, test included, and record the source commit in the header comment of the copy's `collabWriteback.ts`. Don't hand-merge.
 
 - **Formatting:** lex-frontend's formatter will reformat the copy. Accept the format-only diff, and compare copies with a diff that ignores whitespace and semicolons.
-- **Tests:** test the copy through `CollabWriteback` on a real editor, as `tests/workaround/collabWriteback.test.ts` does. Tests of internal helpers break on every internal change.
+- **Tests:** `collabWriteback.test.ts` comes with the copy and tests through `CollabWriteback` on real editors. Replace lex-frontend's tests of internal helpers with it; they break on every internal change.
 - **Last synced:** not yet. lex-frontend's copy predates the element writeback and the per-fragment scope.

@@ -4,6 +4,7 @@ import {
   type Extensions,
   getSchema,
   type JSONContent,
+  Node,
 } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
 import { TextStyle } from "@tiptap/extension-text-style";
@@ -13,12 +14,10 @@ import { FontFamily } from "@tiptap/extension-text-style/font-family";
 import { FontSize } from "@tiptap/extension-text-style/font-size";
 import StarterKit from "@tiptap/starter-kit";
 import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
-import { InlineThread } from "@tiptap-pro/extension-comments";
+import { BlockThread, InlineThread } from "@tiptap-pro/extension-comments";
 import { afterEach, describe, expect, test } from "vitest";
 import * as Y from "yjs";
-import { CollabWriteback } from "~/workaround/collabWriteback";
-import { blockAnchors, blockNodes } from "../utils/blockSchema";
-import { yTextSegments } from "../utils/yMarkSnapshots";
+import { CollabWriteback } from "./collabWriteback";
 
 /**
  * The workaround's own contract, offline: what `CollabWriteback` changes, and
@@ -26,7 +25,55 @@ import { yTextSegments } from "../utils/yMarkSnapshots";
  *
  * Every assertion reads what ends up stored in Yjs, through real editors on
  * real documents — the interface the workaround presents.
+ *
+ * Self-contained, so it travels with the directory: `workaround/` never
+ * imports from `tests/` (ADR 0002).
  */
+
+const plainKit = StarterKit.configure({ undoRedo: false, trailingNode: false });
+
+/** A paragraph with a non-null default, as an indent extension adds. */
+const Paragraph = Node.create({
+  name: "paragraph",
+  priority: 1000,
+  group: "block",
+  content: "inline*",
+  addAttributes: () => ({
+    textAlign: { default: null },
+    marginLeft: { default: 0 },
+  }),
+  parseHTML: () => [{ tag: "p" }],
+  renderHTML: () => ["p", 0],
+});
+
+/** A code block declaring `language` before `theme` (default `"dark"`). */
+const CodeBlock = Node.create({
+  name: "codeBlock",
+  group: "block",
+  content: "text*",
+  marks: "",
+  code: true,
+  addAttributes: () => ({
+    language: { default: null },
+    theme: { default: "dark" },
+  }),
+  parseHTML: () => [{ tag: "pre" }],
+  renderHTML: () => ["pre", ["code", 0]],
+});
+
+/** Blocks whose attributes have a schema order and non-null defaults. */
+const blockNodes: Extensions = [
+  StarterKit.configure({
+    undoRedo: false,
+    trailingNode: false,
+    paragraph: false,
+    codeBlock: false,
+  }),
+  Paragraph,
+  CodeBlock,
+];
+
+const blockAnchors: Extensions = [BlockThread, InlineThread];
 
 const FIELD = "default";
 const TARGET = "[target]";
@@ -78,6 +125,24 @@ function storedKeyOrder(ydoc: Y.Doc): string[][] {
   return order;
 }
 
+/** The `textStyle` value of each text run Yjs stores, in document order. */
+function storedTextStyles(ydoc: Y.Doc): unknown[] {
+  const styles: unknown[] = [];
+  const visit = (type: Y.XmlFragment | Y.XmlElement) => {
+    for (const child of type.toArray()) {
+      if (child instanceof Y.XmlText) {
+        for (const op of child.toDelta()) {
+          styles.push(op.attributes?.textStyle);
+        }
+      } else if (child instanceof Y.XmlElement) {
+        visit(child);
+      }
+    }
+  };
+  visit(ydoc.getXmlFragment(FIELD));
+  return styles;
+}
+
 /** Types one character at the end of the first block, re-syncing it. */
 function editFirstBlock(editor: Editor) {
   editor.commands.insertContentAt(1 + TARGET.length, "!");
@@ -91,8 +156,6 @@ const marginLeftDefault = (value: number) =>
       { types: ["paragraph"], attributes: { marginLeft: { default: value } } },
     ],
   });
-
-const plainKit = StarterKit.configure({ undoRedo: false, trailingNode: false });
 
 describe("CollabWriteback", () => {
   test("needs Collaboration on the same editor", () => {
@@ -231,8 +294,7 @@ describe("CollabWriteback", () => {
       seed,
       FIELD,
     );
-    const stored = () => yTextSegments(ydoc).map((s) => s.attributes.textStyle);
-    const before = stored();
+    const before = storedTextStyles(ydoc);
 
     const editor = attach(ydoc, [
       plainKit,
@@ -251,6 +313,6 @@ describe("CollabWriteback", () => {
       .run();
 
     expect(before).toEqual([{ backgroundColor: "#E73E3E", color: null }]);
-    expect(stored()).toEqual(before);
+    expect(storedTextStyles(ydoc)).toEqual(before);
   });
 });

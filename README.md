@@ -119,7 +119,7 @@ Each file makes one claim, and each **asserts the behaviour we expect** — so t
 | `tests/block-anchor.test.ts` | **The second bug.** A block comment on a block whose stored attributes differ from the rebuilt copy (out of schema order, or missing a default) loses its anchor. Stock Tiptap, **6 of 10 red**. | yes |
 | `tests/probes/block-anchor.probe.ts` | **The workaround.** The identical block matrix with our stopgap applied, **10/10**. | yes |
 | `tests/utils/*.test.ts` | The selection helpers the matrix relies on place their ranges correctly. | no |
-| `tests/workaround/*.test.ts` | The stopgap's own contract: what it changes, and that it changes it only for the editor it is added to. Green. | no |
+| `workaround/*.test.ts` | Not part of the report: the stopgap's own contract — what it changes, and that it changes it only for the editor it is added to. Green. | no |
 
 Start with `tests/attribute-hashing.test.ts` — it needs no licence key, no server, and runs in under a second. Two of its four tests fail, and the failure message names the two keys that ought to have matched.
 

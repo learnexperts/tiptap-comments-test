@@ -1,7 +1,7 @@
 # `tests/` is a bug report, not a regression suite
 
 _Amended 2026-10-06: the report now covers a second defect (block anchors), and
-`tests/workaround/` was added. See the consequences._
+the workaround's own tests were added, outside `tests/`. See the consequences._
 
 This repository exists to communicate two TipTap collab + CommentsKit defects to
 the TipTap team. `tests/` is the artifact we hand them, so it is optimised for a
@@ -52,10 +52,10 @@ claim, and a failing test *is* the report rather than a problem to fix.
   or `tests/utils/blockMatrix.ts`. The stock suite and the probe run the same
   matrix, and both configurations come only from `tests/utils/extensionSets.ts`,
   so they cannot drift apart.
-- `tests/workaround/` is the one green project that is not part of the report.
-  It pins the workaround's own contract offline, chiefly that it changes only
-  the editor it is added to; a leak would silently turn stock evidence green.
-  It runs on pre-push.
+- The workaround's own contract is tested in `workaround/`, not here, because it
+  is not part of the report. It pins, offline, chiefly that the workaround
+  changes only the editor it is added to; a leak would silently turn stock
+  evidence green. It is green and runs on pre-push.
 - Adding a test needs a reason a TipTap engineer would care about. Coverage is
   not one.
 - The comparison that eliminated two candidate workarounds survives only as a

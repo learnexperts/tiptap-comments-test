@@ -36,7 +36,7 @@ the point.
   Biome enforces both directions.
 - The two halves go away separately: the `textStyle` mechanism when the inline
   defect is fixed, the element mechanisms when the block defect is fixed. When
-  both are gone, so are this directory, the `probes` project and
-  `tests/workaround/`. Nothing else in the repo depends on the workaround.
+  both are gone, so are this directory (its tests included) and the `probes`
+  project. Nothing else in the repo depends on the workaround.
 - Every mechanism has earned its place by ablation; `workaround/README.md`
   records the table, including two mechanisms deleted for doing no work.

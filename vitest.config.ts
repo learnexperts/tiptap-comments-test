@@ -31,7 +31,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "workaround",
-          include: ["tests/workaround/**/*.test.ts"],
+          include: ["workaround/**/*.test.ts"],
         },
       },
       {
