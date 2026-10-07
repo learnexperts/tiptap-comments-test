@@ -63,9 +63,9 @@ Fixing either would close the defect. (1) is the more general problem: it affect
 
 ## Our interim workaround (not a recommendation)
 
-`workaround/` is what we run in production while this is open ([its README](../workaround/README.md)). **Do not treat it as a fix.** For this defect it patches each mark type's `create` from outside the library — acceptable as a stopgap we own, not as guidance for anyone else.
+`workaround/` is what we run in production while this is open ([its README](../workaround/README.md)). **Do not treat it as a fix.** For this defect it patches how `Y.Text` writes marks, from outside the library — acceptable as a stopgap we own, not as guidance for anyone else.
 
-Its value to this report is diagnostic. It keeps each mark to the attribute keys it was created with, leaving out `null` defaults it was not given, so the value written back matches the one Yjs stores — that is, it neutralises the shape-sensitivity from outside. Doing so takes the matrix from 30/34 to **34/34**, which is what localises the defect to the comparison described above. Ablation showed that patch alone is enough: an `appendTransaction` sparsifier and a `Y.Text.applyDelta` retain strip that it used to carry were deleted, the first for causing the very write it was meant to prevent. Two other candidate extensions were tried; one is redundant and one is harmful — see [What the workaround fixes](#what-the-workaround-fixes).
+Its value to this report is diagnostic. Where y-prosemirror writes a mark that says the same as the one Yjs stores, it leaves the stored one in place, hashed key included — that is, it neutralises the shape-sensitivity from outside. Doing so takes the matrix from 30/34 to **34/34**, which is what localises the defect to the comparison described above. How it got there, including mechanisms deleted for doing no work or doing harm, is in [its history](../workaround/README.md#history). Two other candidate extensions were tried; one is redundant and one is harmful — see [What the workaround fixes](#what-the-workaround-fixes).
 
 An `appendTransaction` that strips nulls from the ProseMirror doc does **not** work on its own: `mark.create({ backgroundColor })` still merges schema `default: null` from Color / FontSize / FontFamily before writeback sees it.
 

@@ -497,5 +497,37 @@ describe("CollabWriteback", () => {
       expect(before.map(([, keys]) => keys)).toEqual([["zeta", "alpha"]]);
       expect(storedFormats(ydoc)).toEqual(before);
     });
+
+    test("keeps its stored key when this schema adds a non-null default", () => {
+      const ydoc = prosemirrorJSONToYDoc(
+        getSchema([plainKit, Tag]),
+        {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: TARGET,
+                  marks: [{ type: "tag", attrs: { alpha: "a" } }],
+                },
+              ],
+            },
+          ],
+        },
+        FIELD,
+      );
+      const before = storedFormats(ydoc);
+      const TagWithStatus = Tag.extend({
+        addAttributes() {
+          return { ...this.parent?.(), status: { default: "open" } };
+        },
+      });
+
+      editFirstBlock(attach(ydoc, [plainKit, TagWithStatus, CollabWriteback]));
+
+      expect(storedFormats(ydoc)).toEqual(before);
+    });
   });
 });

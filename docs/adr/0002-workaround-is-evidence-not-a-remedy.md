@@ -13,8 +13,8 @@ describes it and its mechanisms.
 
 ## It is deliberately not presented as a fix
 
-The extension patches `MarkType.create`, and monkey-patches Yjs's
-`XmlFragment` and `XmlElement` prototypes, from outside the libraries. That is defensible for a
+The extension monkey-patches Yjs's `Text`, `XmlFragment` and `XmlElement`
+prototypes from outside the library. That is defensible for a
 stopgap we own and maintain; it is not something to recommend to TipTap or to
 their other users, and the README says so explicitly.
 
