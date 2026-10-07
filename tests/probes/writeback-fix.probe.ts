@@ -1,3 +1,4 @@
+import { describe } from "~/tests/fixtures";
 import { describeCommentMatrix } from "../utils/commentMatrix";
 import { writebackFixExtensions } from "../utils/extensionSets";
 
@@ -9,7 +10,6 @@ import { writebackFixExtensions } from "../utils/extensionSets";
  * Held out of the default run so `pnpm test` reports the unmitigated bug.
  * Run with `pnpm test:probes`.
  */
-describeCommentMatrix(
-  "given a comment-only session with the writeback fix",
-  writebackFixExtensions,
-);
+describe("with the writeback fix", () => {
+  describeCommentMatrix("given a comment-only session", writebackFixExtensions);
+});

@@ -1,3 +1,4 @@
+import { describe } from "~/tests/fixtures";
 import { describeBlockMatrix } from "../utils/blockMatrix";
 import { blockSchema, writebackFixExtensionsFor } from "../utils/extensionSets";
 
@@ -6,7 +7,9 @@ import { blockSchema, writebackFixExtensionsFor } from "../utils/extensionSets";
  * applied. Held out of the default run so `pnpm test` reports the
  * unmitigated bug. Run with `pnpm test:probes`.
  */
-describeBlockMatrix(
-  "given a comment-only session with the writeback fix",
-  writebackFixExtensionsFor(blockSchema),
-);
+describe("with the writeback fix", () => {
+  describeBlockMatrix(
+    "given a comment-only session",
+    writebackFixExtensionsFor(blockSchema),
+  );
+});

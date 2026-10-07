@@ -19,6 +19,8 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./setup.ts"],
+    // The test names are the report, so print the whole tree.
+    reporters: ["tree"],
 
     projects: [
       {
