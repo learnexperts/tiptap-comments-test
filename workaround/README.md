@@ -30,7 +30,7 @@ Its contract is tested offline beside it, in [`collabWriteback.test.ts`](collabW
 
 | # | Mechanism | Defect | Needed by |
 |---|---|---|---|
-| 1 | `textStyle` `MarkType.create` keeps only the keys it was given | [Inline anchor lost on `textStyle`](../docs/comment-anchor-lost.md) | the four single-style cases in the comment matrix; a block anchor on styled text |
+| 1 | Every mark type's `create` leaves out attributes it was not given whose default is `null`, and keeps the given key order | [Inline anchor lost on `textStyle`](../docs/comment-anchor-lost.md) | the four single-style cases in the comment matrix; a block anchor on styled text; any mark whose attributes several extensions declare |
 | 2 | A rebuilt block takes the replaced element's key order and key set | [Block anchor undone](../docs/block-anchor-undone.md) | every block stored out of schema order or without a default |
 | 3 | A schema default is not written onto an existing element that lacks it | [Block anchor undone](../docs/block-anchor-undone.md) | an inline anchor on a block stored without a default; keeps 2's copies stable |
 
@@ -41,7 +41,7 @@ Each mechanism was removed in turn and the comment matrix, the block probe and t
 | Removed | Comment matrix | Block probe | Offline | Outcome |
 |---|---|---|---|---|
 | nothing | 34/34 | 23/23 | — | — |
-| 1 `textStyle` create | **30/34** | 1 red | 2 red | kept |
+| 1 mark create (then `textStyle` only) | **30/34** | 1 red | 2 red | kept, since generalised |
 | `appendTransaction` sparsifier | 34/34 | 23/23 | fixes a red | **deleted** |
 | `Y.Text.applyDelta` retain strip | 34/34 | 23/23 | — | **deleted** |
 | sparsifier and retain strip together | 34/34 | 23/23 | — | confirms both redundant |
@@ -49,6 +49,12 @@ Each mechanism was removed in turn and the comment matrix, the block probe and t
 | 3 default skip | 34/34 | **1 red** | — | kept |
 
 The block probe here is the investigation's original 23 comment-only cases, which `tests/utils/blockMatrix.ts` distils.
+
+Mechanism 1 was ablated when it covered only `textStyle`. It now covers every mark type, with two changes that make that safe. It drops only `null`-default keys, because a non-null default is behaviour (a link's `target`). And it keeps the given key order instead of sorting, because y-prosemirror keys an overlapping mark (such as `inlineThread`) by a hash of its JSON, which depends on order. Both matrices are unchanged by the generalisation.
+
+### Limits
+
+A stored mark **missing a non-null default** is still rewritten with that default the next time its text is re-synced. Leaving the default out of the mark would change what the editor renders, so mechanism 1 doesn't. The element-attribute equivalent is handled at the Yjs write (mechanism 3); marks have no such patch yet, because no case in either matrix needs one.
 
 **Why the two were deleted:**
 

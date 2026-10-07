@@ -4,6 +4,7 @@ import {
   type Extensions,
   getSchema,
   type JSONContent,
+  Mark,
   Node,
 } from "@tiptap/core";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -314,5 +315,91 @@ describe("CollabWriteback", () => {
 
     expect(before).toEqual([{ backgroundColor: "#E73E3E", color: null }]);
     expect(storedTextStyles(ydoc)).toEqual(before);
+  });
+
+  describe("any mark, not only textStyle", () => {
+    /**
+     * A mark whose attributes come from several extensions, as `textStyle`'s
+     * do: `kind` always, plus whatever `extra` a wider schema declares.
+     */
+    const annotation = (extra: Record<string, { default: unknown }> = {}) =>
+      Mark.create({
+        name: "annotation",
+        addAttributes: () => ({ kind: { default: null }, ...extra }),
+        parseHTML: () => [{ tag: "span[data-annotation]" }],
+        renderHTML: () => ["span", { "data-annotation": "" }, 0],
+      });
+
+    const seed: JSONContent = {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: TARGET,
+              marks: [{ type: "annotation", attrs: { kind: "note" } }],
+            },
+          ],
+        },
+      ],
+    };
+
+    /** The `annotation` value of each text run Yjs stores. */
+    function storedAnnotations(ydoc: Y.Doc): unknown[] {
+      const fragment = ydoc.getXmlFragment(FIELD);
+      const paragraph = fragment.get(0) as Y.XmlElement;
+      const text = paragraph.get(0) as Y.XmlText;
+      return text
+        .toDelta()
+        .map(
+          (op: { attributes?: Record<string, unknown> }) =>
+            op.attributes?.annotation,
+        );
+    }
+
+    function commentOnTarget(editor: Editor) {
+      editor
+        .chain()
+        .setTextSelection({ from: 1, to: 1 + TARGET.length })
+        .setMark("inlineThread", { "data-thread-id": "thread-1" })
+        .run();
+    }
+
+    test("writes back a value stored without null-default keys unchanged", () => {
+      const ydoc = prosemirrorJSONToYDoc(
+        getSchema([plainKit, annotation()]),
+        seed,
+        FIELD,
+      );
+      commentOnTarget(
+        attach(ydoc, [
+          plainKit,
+          annotation({ author: { default: null } }),
+          InlineThread,
+          CollabWriteback,
+        ]),
+      );
+
+      expect(storedAnnotations(ydoc)).toEqual([{ kind: "note" }]);
+    });
+
+    test("keeps a non-null default a new mark was not given", () => {
+      const editor = attach(new Y.Doc(), [
+        plainKit,
+        annotation({ author: { default: null }, status: { default: "open" } }),
+        CollabWriteback,
+      ]);
+      editor.commands.insertContent(TARGET);
+      editor
+        .chain()
+        .setTextSelection({ from: 1, to: 1 + TARGET.length })
+        .setMark("annotation", { kind: "note" })
+        .run();
+
+      const mark = editor.state.doc.nodeAt(1)?.marks[0];
+      expect(mark?.attrs).toEqual({ kind: "note", status: "open" });
+    });
   });
 });

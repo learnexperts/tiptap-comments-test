@@ -12,9 +12,9 @@ import { registerFragment } from "./writebackScope";
  * y-prosemirror writes ProseMirror → Yjs. Other editors in the process, on the
  * same document or not, are left as stock.
  *
- * 1. `textStyle` marks keep only the attribute keys they were created with, so
- *    the client writes the sparse value the server stored instead of one
- *    densified with `null`s.
+ * 1. Marks leave out attributes they were not given whose default is `null`,
+ *    and keep the order they were given in, so the client writes the value
+ *    Yjs stores instead of one densified with `null`s.
  * 2. A block y-prosemirror rebuilds (wrapping it in `blockThread`) is written
  *    with the key order and key set of the element it replaces.
  * 3. A schema default is not written onto an existing element that lacks it.
@@ -36,9 +36,8 @@ export const CollabWriteback = Extension.create({
       this.editor.schema,
     );
 
-    const textStyle = this.editor.schema.marks.textStyle;
-    if (textStyle) {
-      keepTextStyleSparse(textStyle);
+    for (const markType of Object.values(this.editor.schema.marks)) {
+      keepMarkSparse(markType);
     }
   },
 
@@ -84,35 +83,56 @@ const MarkConstructor = Mark as unknown as new (
 ) => Mark;
 
 /**
- * Patch this schema's `textStyle` `MarkType.create` to keep only the attribute
- * keys it was given, in sorted order.
+ * Patch one mark type's `create` so a mark carries only the attributes it was
+ * given, plus any it was not given whose default is non-null, in the order
+ * given.
  *
- * `computeAttrs` densifies the full textStyle kit onto every mark
- * (`fontSize: null`, …). y-prosemirror writes `mark.attrs` wholesale, so a
- * densified mark is a different value from the sparse one the server stored,
- * and re-writing it reads as a styling edit. Keys present in the input —
- * including `null`s Yjs already stores — are kept, so what is read back from
- * Yjs is written back unchanged.
+ * `computeAttrs` densifies every attribute the schema declares onto every
+ * mark: a `textStyle` that set only `backgroundColor` also carries
+ * `fontSize: null`, `color: null` and so on, one per extension that adds an
+ * attribute. y-prosemirror writes `mark.attrs` wholesale, so that densified
+ * mark is a different value from the sparse one Yjs stores, and writing it
+ * back reads as an edit nobody made.
+ *
+ * - **Only `null` defaults are dropped.** A `null` default means the same as
+ *   absent. A non-null default is behaviour (a link's `target`), so it stays,
+ *   even though a stored mark lacking it will still be rewritten with it.
+ * - **Keys given are kept, `null`s included,** so a value read back from Yjs
+ *   is written back unchanged.
+ * - **The given order is kept.** y-prosemirror keys an overlapping mark (such
+ *   as `inlineThread`) by a hash of its JSON, which depends on key order;
+ *   reordering would compute a different key from the one stored.
  */
-function keepTextStyleSparse(markType: MarkType): void {
+function keepMarkSparse(markType: MarkType): void {
   const patched = markType as MarkType & { [MARK_CREATE_PATCHED]?: boolean };
   if (patched[MARK_CREATE_PATCHED]) {
+    return;
+  }
+  patched[MARK_CREATE_PATCHED] = true;
+
+  const nullByDefault = new Set(
+    Object.entries(markType.spec.attrs ?? {})
+      .filter(([, spec]) => spec?.default === null)
+      .map(([key]) => key),
+  );
+  if (nullByDefault.size === 0) {
     return;
   }
 
   const create = markType.create.bind(markType);
   markType.create = (attrs = null) => {
-    const keys = Object.keys(attrs ?? {});
+    const given = attrs ?? {};
     const mark = create(attrs);
+    const full = mark.attrs as Record<string, unknown>;
+    const keys = Object.keys(given).filter((key) => key in full);
+    for (const key of Object.keys(full)) {
+      if (!(key in given) && !nullByDefault.has(key)) {
+        keys.push(key);
+      }
+    }
     return new MarkConstructor(
       markType,
-      Object.fromEntries(
-        Object.entries(mark.attrs as Record<string, unknown>)
-          .filter(([key]) => keys.includes(key))
-          .sort(([left], [right]) => left.localeCompare(right)),
-      ),
+      Object.fromEntries(keys.map((key) => [key, full[key]])),
     );
   };
-
-  patched[MARK_CREATE_PATCHED] = true;
 }
