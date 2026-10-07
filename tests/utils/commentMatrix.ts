@@ -1,8 +1,7 @@
-import type { Editor, Extensions, JSONContent } from "@tiptap/core";
+import type { Editor, JSONContent } from "@tiptap/core";
 import { threadExistsInDocument } from "@tiptap-pro/extension-comments";
 import { describe, expect, test } from "~/tests/fixtures";
 import { embeddedInParagraph, paragraph, text } from "./document";
-import type { ExtensionDeps } from "./extensionSets";
 import { waitUntilFlushed } from "./flushChanges";
 import { offsetCursorPosition } from "./positions";
 import { queryOrFail } from "./query";
@@ -164,18 +163,10 @@ const cases: CommentCase[] = [
   },
 ];
 
-/**
- * Registers the whole matrix under `label`, with every case built from
- * `getExtensions`.
- */
-export function describeCommentMatrix(
-  label: string,
-  getExtensions: (deps: ExtensionDeps) => Extensions,
-) {
+/** Registers the matrix; call it where `extensions` is overridden. */
+export function describeCommentMatrix() {
   describe("setThread", () => {
-    describe(label, () => {
-      test.override("extensions", getExtensions);
-
+    describe("given a comment-only session", () => {
       describe.for<CommentCase>(cases)(
         "and $label content",
         ({ content, scenarios }) => {

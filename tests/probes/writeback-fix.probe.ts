@@ -1,4 +1,4 @@
-import { describe } from "~/tests/fixtures";
+import { describe, test } from "~/tests/fixtures";
 import { describeCommentMatrix } from "../utils/commentMatrix";
 import { writebackFixExtensions } from "../utils/extensionSets";
 
@@ -11,5 +11,6 @@ import { writebackFixExtensions } from "../utils/extensionSets";
  * Run with `pnpm test:probes`.
  */
 describe("with the writeback fix", () => {
-  describeCommentMatrix("given a comment-only session", writebackFixExtensions);
+  test.override("extensions", writebackFixExtensions);
+  describeCommentMatrix();
 });

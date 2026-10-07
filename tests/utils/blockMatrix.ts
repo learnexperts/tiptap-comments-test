@@ -9,7 +9,7 @@ import { vi } from "vitest";
 import Websocket from "ws";
 import { describe, expect, test } from "~/tests/fixtures";
 import { createToken } from "./createToken";
-import type { Configuration } from "./extensionSets";
+import { blockSchema, stockExtensionsFor } from "./extensionSets";
 import { waitUntilFlushed } from "./flushChanges";
 import { query, queryOrFail } from "./query";
 import {
@@ -183,10 +183,13 @@ const cases: BlockCase[] = [
   },
 ];
 
-/** Runs `edit` as an editor, then waits for `commenter` to receive it. */
+/**
+ * Runs `edit` in a stock editor session, then waits for `commenter` to
+ * receive it. CollabWriteback would store the same: it changes only writes
+ * that say what is already stored.
+ */
 async function editAsEditor(
   documentName: string,
-  configuration: Configuration,
   edit: (editor: Editor) => void,
   commenter: Editor,
 ) {
@@ -203,7 +206,7 @@ async function editAsEditor(
   });
   await waitForSync(provider);
   const editor = new Editor({
-    extensions: configuration({ syncedProvider: provider }),
+    extensions: stockExtensionsFor(blockSchema)({ syncedProvider: provider }),
   });
 
   try {
@@ -220,14 +223,9 @@ async function editAsEditor(
   }
 }
 
-export function describeBlockMatrix(
-  label: string,
-  configuration: Configuration,
-) {
+export function describeBlockMatrix() {
   describe("block anchors", () => {
-    describe(label, () => {
-      test.override("extensions", configuration);
-
+    describe("given a comment-only session", () => {
       describe.for<BlockCase>(cases)(
         "on $label",
         ({ seed, editFirst, anchorOn }) => {
@@ -240,12 +238,7 @@ export function describeBlockMatrix(
             annotate,
           }) => {
             if (editFirst) {
-              await editAsEditor(
-                documentName,
-                configuration,
-                editFirst,
-                editor,
-              );
+              await editAsEditor(documentName, editFirst, editor);
             }
 
             const writes = recordYWrites(provider.document);

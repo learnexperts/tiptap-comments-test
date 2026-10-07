@@ -1,3 +1,4 @@
+import { test } from "~/tests/fixtures";
 import { describeCommentMatrix } from "./utils/commentMatrix";
 import { stockExtensions } from "./utils/extensionSets";
 
@@ -9,4 +10,5 @@ import { stockExtensions } from "./utils/extensionSets";
  * `tests/probes/writeback-fix.probe.ts` runs the identical matrix with the
  * workaround applied; the difference between the two is what it buys.
  */
-describeCommentMatrix("given a comment-only session", stockExtensions);
+test.override("extensions", stockExtensions);
+describeCommentMatrix();

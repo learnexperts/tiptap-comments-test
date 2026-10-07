@@ -1,3 +1,4 @@
+import { test } from "~/tests/fixtures";
 import { describeBlockMatrix } from "./utils/blockMatrix";
 import { blockSchema, stockExtensionsFor } from "./utils/extensionSets";
 
@@ -9,7 +10,5 @@ import { blockSchema, stockExtensionsFor } from "./utils/extensionSets";
  * `tests/probes/block-anchor.probe.ts` runs the identical matrix with the
  * workaround applied.
  */
-describeBlockMatrix(
-  "given a comment-only session",
-  stockExtensionsFor(blockSchema),
-);
+test.override("extensions", stockExtensionsFor(blockSchema));
+describeBlockMatrix();
