@@ -503,5 +503,34 @@ describe("CollabWriteback", () => {
 
       expect(storedFormats(ydoc)).toEqual(before);
     });
+
+    test("keeps its stored key when a stock client stored its unset attributes", () => {
+      // A stock client writes every attribute, so Yjs holds `zeta: null` too.
+      const ydoc = prosemirrorJSONToYDoc(
+        getSchema([plainKit, Tag]),
+        {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: TARGET,
+                  marks: [{ type: "tag", attrs: { alpha: "a" } }],
+                },
+              ],
+            },
+          ],
+        },
+        FIELD,
+      );
+      const before = storedFormats(ydoc);
+
+      editFirstBlock(attach(ydoc, [plainKit, Tag, CollabWriteback]));
+
+      expect(before.map(([, keys]) => keys)).toEqual([["zeta", "alpha"]]);
+      expect(storedFormats(ydoc)).toEqual(before);
+    });
   });
 });
