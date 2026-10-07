@@ -1,0 +1,71 @@
+Draft for submission to TipTap support, as a new request.
+
+The form fields do not render markdown, so no headings, bold, backticks, tables or links. Paragraphs are single lines. Indented blocks are the only place line breaks matter. Copy each section between the [ FIELD ] markers, and keep this in sync with docs/block-anchor-fragments.md.
+
+
+[ FIELD 1 - Provide a short title for your request ]
+
+Comment-only users cannot keep any block comment in a fragment nested in a Y.Map: the server undoes every one (inline comments are unaffected)
+
+
+[ FIELD 2 - Describe the problem you're experiencing in detail ]
+
+This blocks block comments for every comment-only user in our product.
+
+On a comment-only connection (JWT with the document in readonlyDocumentNames and commentDocumentNames), a block comment - setThread on a NodeSelection, which wraps the block in blockThread - is undone by the server unless the editor's fragment is the root XmlFragment "default", or another root XmlFragment declared with provider.setFieldType(name, "xmlfragment"). The comment appears locally, then disappears on sync with no error in the client.
+
+Inline comments are unaffected. They are kept in every layout below, nested fragments included, by the same comment-only user on the same page. Only the block wrap is undone.
+
+We store each page of a document as an XmlFragment inside a root map, ydoc.getMap("pages").get(pageId), and bind Collaboration with the fragment option. Every block comment a comment-only user makes is undone, on every page. The same wrap of the same content is kept in "default", so only where the fragment lives decides it. The server logs:
+
+    Undoing change to document <doc> from guest:<sub> because non-allowed type was touched. Touched types: pages.
+
+A full-rights session writes the same two paragraphs into each layout, declaring types first; a comment-only session then comments on the first paragraph:
+
+    root "default"                                     block kept     inline kept
+    root "page:page-1", setFieldType xmlfragment       block kept     inline kept
+    root "page:page-1", undeclared                     block undone   inline kept
+    pages -> page-1, undeclared                        block undone   inline kept
+    pages -> page-1, setFieldType("pages", "map")      block undone
+    as above, plus setFieldType(key, "xmlfragment")    block undone
+      for key = pages.page-1, pages.[page-1],
+      pages[page-1], pages/page-1, pages:page-1,
+      with Collaboration's field set to the same key
+
+We found no documented way to declare a fragment that is not a root. setFieldType itself is documented only for webhook custom fields, not for the comment-only check.
+
+The only way out we can see is to migrate every page of every document to a declared root fragment. That is a data migration across all our documents, resting on an API documented for another purpose, and we do not want to start it without knowing it is the supported path.
+
+ENVIRONMENT
+
+    @tiptap-pro/extension-comments    3.9.5   (useLegacyWrapping: false)
+    @tiptap-pro/provider              3.9.5
+    @tiptap/core                      3.30.3
+    @tiptap/extension-collaboration   3.30.3
+    @tiptap/y-tiptap                  3.0.9
+    yjs                               13.6.32
+
+    Collab server image
+      container.tiptap.dev/collaboration/server:latest
+
+
+[ FIELD 3 - Describe what you expected to happen ]
+
+A block comment by a comment-only user should be kept wherever the editor's fragment lives, as an inline comment already is. Collaboration accepts any XmlFragment through its fragment option, and the comment-only check accepts inline comments in all of these layouts, so we expected block comments to follow.
+
+We need one of these from you:
+
+1. Support for fragments nested in a Y.Map in the comment-only block-wrap check, or a way to declare them that the check honours.
+
+2. If nested fragments will not be supported, confirmation that root fragments declared with provider.setFieldType(name, "xmlfragment") are the supported way to make the check accept block wraps outside "default", and that this will stay supported, so we can plan the migration on it.
+
+
+[ FIELD 4 - Code Example Link ]
+
+https://github.com/learnexperts/tiptap-comments-test
+
+Needs Docker and an on-premises licence key; setup is in the README.
+
+    pnpm test:fragments
+
+14 cases, 8 red. Each asserts that the anchor is kept, so the undone layouts above are the red tests. Write-up: docs/block-anchor-fragments.md.

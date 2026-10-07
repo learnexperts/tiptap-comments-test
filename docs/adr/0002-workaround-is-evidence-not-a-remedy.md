@@ -2,7 +2,8 @@
 
 _Amended 2026-10-06: the workaround now covers two defects with three
 mechanisms in three files, and its halves have separate removal conditions. The
-decision is unchanged._
+decision is unchanged. Amended 2026-10-07: a fourth mechanism, keeping an
+emptied block's text, joins the element half._
 
 `workaround/` is the one directory here that is not test support: it is the
 stopgap we run in production while the defects are open. It lives in its own
@@ -19,7 +20,7 @@ stopgap we own and maintain; it is not something to recommend to TipTap or to
 their other users, and the README says so explicitly.
 
 Its role in the report is diagnostic. Suppressing the spurious `textStyle` write
-takes the comment matrix from 30/34 to 34/34, and copying the stored element's
+takes the comment matrix from 13/17 to 17/17, and copying the stored element's
 attribute order takes the block matrix green. That localises each defect to the
 writeback path — the client emitting a mark change nobody made, and the comment-only path
 discarding the whole update rather than only the disallowed part of it. Either

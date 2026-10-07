@@ -1,0 +1,50 @@
+Draft reply to our existing TipTap support request ("Comment threads lose their anchor on styled text"). It is an addendum, not a new request.
+
+Same conventions as the first report: no markdown, paragraphs on single lines, indented blocks are the only place line breaks matter. Keep it in sync with docs/comment-anchor-lost.md and docs/block-anchor-undone.md.
+
+
+---
+
+Hello again. An update to our report on comment threads losing their anchor: one correction, and the same class of problem found for block comments.
+
+CORRECTION
+
+Our first report named y-prosemirror's hashed keys for overlapping marks as the root cause. That hashing is shape-sensitive, but textStyle is not an overlapping mark - it is stored under its name - so the hash plays no part in the failures we reported. The actual write comes from updateYText: adding the inlineThread mark re-syncs the run, which re-applies every mark on it as a retain delta, unchanged ones included:
+
+    ytext.applyDelta(
+      content.map((c) => ({ retain: c.insert.length, attributes: c.attributes }))
+    )
+
+textStyle goes out as { backgroundColor, color: null, fontFamily: null, fontSize: null } against a stored { backgroundColor }. Yjs compares format values key by key, so that is written as a change, and the comment-only check rejects the update with the inlineThread mark in it. y-prosemirror's own equalAttrs, which ignores null keys, would call the two values equal.
+
+Repro (17 cases, 4 red, all on single-style textStyle):
+
+    pnpm test:inline
+
+ADDENDUM: BLOCK COMMENTS
+
+A block comment (setThread on a NodeSelection, which wraps the block in blockThread) is undone on a comment-only connection whenever the stored block differs from the copy y-prosemirror rebuilds. Yjs cannot move an element, so the wrap is written as a delete of the block plus an insert of blockThread holding a copy built by createTypeFromElementNode: attributes in schema order with every non-null default, children from the ProseMirror node. The server accepts that only when the copy is identical to the deleted element, attribute key order included. The server logs:
+
+    Undoing change to document <doc> from guest:<sub> because non-allowed type was touched. Touched types: default.
+
+with no "Touched attributes" entry, which made these hard to diagnose. Each of the following makes the copy differ, and loses the comment:
+
+    stored paragraph {marginLeft, textAlign}, copy {textAlign, marginLeft}
+    stored codeBlock {theme, language}, copy {language, theme}
+    a code block whose language was picked after it was inserted (Yjs appends the new key, so stored order drifts from schema order)
+    a paragraph centred after it was typed (same drift)
+    stored paragraph without its marginLeft default, copy writes it
+    an inline comment on that same paragraph: y-prosemirror writes the missing default onto the stored element when it re-syncs it, and the write rides along with the inlineThread mark
+    a paragraph whose text was deleted: y-prosemirror empties its Y.XmlText rather than deleting it (y-prosemirror#108), but the copy has no text child at all
+
+Kept, as controls: a paragraph stored in schema order, a code block inserted with its language already set, a paragraph imported empty, a horizontal rule, a paragraph inside a callout. On an editor connection every case is kept.
+
+The language, centring and emptied-paragraph cases come from ordinary editing, so they reach users without any unusual data. Repro (12 cases, 7 red):
+
+    pnpm test:block
+
+WHAT WE EXPECT
+
+The same as for marks: the comment-only check should not treat a write that changes nothing as an edit. For elements that means comparing attributes as a set regardless of key order, treating an absent attribute as its schema default, and treating an empty text as no text. Alternatively, y-prosemirror could build the wrapped copy from the element it replaces rather than from the ProseMirror node. And as before, rejecting only the disallowed part of an update, instead of the whole update, would keep the comment in every case above.
+
+We run a client-side stopgap that writes each copy in the stored element's shape; with it all 12 cases are kept, which is what localises this to the comparison. Write-up: docs/block-anchor-undone.md.

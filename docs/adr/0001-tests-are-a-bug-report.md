@@ -3,24 +3,29 @@
 _Amended 2026-10-06: the report now covers a second defect (block anchors), and
 the workaround's own tests were added, outside `tests/`. Amended 2026-10-07:
 each matrix's stock and workaround runs now share a file, separated by a tag.
-See the considered options and consequences._
+See the considered options and consequences. Amended again 2026-10-07: the
+report is three issues, one directory and one command each
+(`tests/{inline,block,fragments}`). Issue 3 is stock-only, since the workaround
+does not address it. `attribute-hashing.test.ts` was removed: it showed a
+shape-sensitivity that plays no part in the failing cases._
 
-This repository exists to communicate two TipTap collab + CommentsKit defects to
-the TipTap team. `tests/` is the artifact we hand them, so it is optimised for a
+This repository exists to communicate three TipTap collab + CommentsKit issues
+to the TipTap team. `tests/` is the artifact we hand them, so it is optimised for a
 stranger reading it once — not for coverage, and not for CI. Each file makes one
 claim, and a failing test *is* the report rather than a problem to fix.
 
 ## What this means in practice
 
-- **`pnpm test` is expected to fail.** Tests in `tests/comment.test.ts` and
-  `tests/block-anchor.test.ts` are red because the bugs are real. A green
+- **`pnpm test` is expected to fail.** Tests in `tests/inline/`,
+  `tests/block/` and `tests/fragments/` are red because the issues are real. A green
   default run would mean we had stopped reproducing a defect. The failures are
   indexed in the README so a *new* failure is still distinguishable from a
   documented one.
 - **One claim per file.** `writeback-null-attrs.test.ts` shows the inline
   mechanism offline, `comment.test.ts` shows the resulting anchor loss against
-  a real server, and `block-anchor.test.ts` shows the block defect. Each matrix
-  file also runs the same matrix with our interim workaround, under a
+  a real server, `block-anchor.test.ts` shows the block defect, and
+  `block-anchor-fragments.test.ts` the nested fragments. The inline and block
+  matrix files also run the same matrix with our interim workaround, under a
   `with the writeback fix` describe tagged `writeback`.
 - **The workaround runs are held out of the default run.** `pnpm test` filters
   out the `writeback` tag; `pnpm test:probes` runs only it. Those runs are
@@ -59,7 +64,7 @@ claim, and a failing test *is* the report rather than a problem to fix.
   or `tests/utils/blockMatrix.ts`. The stock and workaround runs call the same
   matrix, and the workaround run is the stock `baseExtensions` plus
   `CollabWriteback`, so they cannot drift apart.
-- Running a matrix file directly (`vitest run tests/comment.test.ts`) runs both
+- Running a matrix file directly (`vitest run tests/inline/comment.test.ts`) runs both
   halves; pass `--tags-filter='!writeback'` for the report alone.
 - The workaround's own contract is tested in `workaround/`, not here, because it
   is not part of the report. It pins, offline, chiefly that the workaround

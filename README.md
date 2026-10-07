@@ -1,23 +1,26 @@
 # Tiptap Comments Reproduction
 
-A minimal reproduction of two TipTap collab + CommentsKit defects on a **comment-only** connection (`readonlyDocumentNames` + `commentDocumentNames`).
+A minimal reproduction of three ways a TipTap collab + CommentsKit **comment-only** connection (`readonlyDocumentNames` + `commentDocumentNames`) loses a comment. In each, the comment appears locally, then the server undoes the whole update on sync and the thread is left with nothing to point at.
 
-> **[Adding a comment to styled text loses the thread anchor after sync.](docs/comment-anchor-lost.md)**
+| # | Issue | Write-up | Tests | Run | With Tiptap |
+|---|---|---|---|---|---|
+| 1 | An inline comment on styled text is lost | [docs/comment-anchor-lost.md](docs/comment-anchor-lost.md) | [`tests/inline/`](tests/inline) | `pnpm test:inline` | reported |
+| 2 | A block comment is undone when the rebuilt copy differs from the stored block | [docs/block-anchor-undone.md](docs/block-anchor-undone.md) | [`tests/block/`](tests/block) | `pnpm test:block` | [addendum to 1](docs/tiptap/addendum-block-anchor.txt) |
+| 3 | A block comment is undone in a fragment nested in a `Y.Map` | [docs/block-anchor-fragments.md](docs/block-anchor-fragments.md) | [`tests/fragments/`](tests/fragments) | `pnpm test:fragments` | [new issue](docs/tiptap/nested-fragments.txt) |
+
+These commands are expected to fail: every test asserts what should happen, so the red ones are the report and turn green when an issue is fixed ([ADR 0001](docs/adr/0001-tests-are-a-bug-report.md)).
+
+> **1. [Adding a comment to styled text loses the thread anchor after sync.](docs/comment-anchor-lost.md)**
 >
-> y-prosemirror keys overlapping marks by a hash of the mark's JSON, so any incidental change to a structured attribute value — a reordered key, an added `null` — reads as an edit. Applying a comment mark therefore emits a `textStyle` write nobody asked for, and a comment-only connection rejects it along with the thread anchor.
+> Adding the comment makes y-prosemirror re-write every mark on the run. `textStyle` goes back with `null` defaults the server never stored, which counts as an edit, and the server rejects it along with the anchor.
 
-> **[A block comment is undone when the block's stored attributes differ from the rebuilt copy.](docs/block-anchor-undone.md)**
+> **2. [A block comment is undone when the stored block differs from the rebuilt copy.](docs/block-anchor-undone.md)**
 >
-> Wrapping a block in `blockThread` deletes it and inserts a copy y-prosemirror rebuilds from the ProseMirror node, in schema order with every default. A comment-only connection keeps that only if the copy matches the stored element, key order included — so a code block whose language was picked after insert loses its comment.
+> Wrapping a block in `blockThread` deletes it and inserts a copy y-prosemirror rebuilds, in schema order with every default and without an emptied text. A comment-only connection keeps that only if the copy matches the stored element, key order and children included. So a code block whose language was picked after insert, or a paragraph whose text was deleted, loses its comment.
 
-It reproduces offline, needing neither Docker nor a licence key:
-
-```sh
-pnpm install
-pnpm exec vitest run tests/attribute-hashing.test.ts
-```
-
-Two of those four tests fail. That is the report — they assert what should happen, so they go green when the defect is fixed.
+> **3. [A block comment is undone outside a root fragment the server knows.](docs/block-anchor-fragments.md)**
+>
+> The server accepts a block wrap only in the root fragment `default`, or in a root fragment declared with `provider.setFieldType`. A fragment nested in a root `Y.Map`, which is how we store every page, is undone however it is declared. Inline comments are kept everywhere.
 
 ## Setup
 
@@ -74,10 +77,15 @@ The server will be available at `localhost:3030`.
 In a separate terminal:
 
 ```sh
-# The report: both bugs plus the inline mechanism (needs Docker for the bugs)
+# The report: all three issues (needs Docker, except issue 1's mechanism)
 pnpm test
 
-# Same matrices with our stopgap applied (needs Docker collab server)
+# One issue at a time
+pnpm test:inline
+pnpm test:block
+pnpm test:fragments
+
+# Issues 1 and 2 with our stopgap applied (needs Docker collab server)
 pnpm test:probes
 
 # Helper unit tests — offline, no server, no licence key
@@ -112,16 +120,14 @@ Each file makes one claim, and each **asserts the behaviour we expect** — so t
 
 | File | Claim | Needs Docker |
 |---|---|---|
-| `tests/attribute-hashing.test.ts` | **The root cause.** y-prosemirror keys overlapping marks by a hash of their JSON, so an unrelated edit rewrites a mark nobody touched. **2 of 4 red.** | no |
-| `tests/writeback-null-attrs.test.ts` | **The mechanism.** That hashing makes the client write `null` `textStyle` attrs into Yjs the server never stored. **1 of 4 red**, and the same assertion passes with our stopgap applied. | no |
-| `tests/comment.test.ts` | **The bug.** On a comment-only connection, that write costs the thread anchor. Stock Tiptap, **4 of 34 red**. | yes |
-| `tests/block-anchor.test.ts` | **The second bug.** A block comment on a block whose stored attributes differ from the rebuilt copy (out of schema order, or missing a default) loses its anchor. Stock Tiptap, **6 of 10 red**. | yes |
-| `writeback`-tagged runs in both matrix files | **The workaround.** Each matrix again under `with the writeback fix`, which only adds `CollabWriteback` to the extensions: **34/34** and **10/10**. Left out of `pnpm test`; `pnpm test:probes` runs them. | yes |
+| `tests/inline/writeback-null-attrs.test.ts` | **Issue 1, the mechanism.** Adding a comment writes `null` `textStyle` attrs into Yjs the server never stored. **1 of 2 red.** | no |
+| `tests/inline/comment.test.ts` | **Issue 1.** On a comment-only connection, that write costs the thread anchor. Stock Tiptap, **4 of 17 red**. | yes |
+| `tests/block/block-anchor.test.ts` | **Issue 2.** A block comment on a block that differs from the rebuilt copy (out of schema order, missing a default, or emptied of its text) loses its anchor. Stock Tiptap, **7 of 12 red**. | yes |
+| `tests/fragments/block-anchor-fragments.test.ts` | **Issue 3.** A block comment loses its anchor outside the root `default` or a root declared with `setFieldType`, and in any fragment nested in a map. Inline comments are kept. **8 of 14 red**. No workaround run. | yes |
+| `writeback`-tagged runs in the issue 1 and 2 matrix files | **The workaround.** Each matrix again under `with the writeback fix`, which only adds `CollabWriteback` to the extensions: **17/17** and **12/12**. Left out of `pnpm test`; `pnpm test:probes` runs them. | yes |
 | `tests/utils/*.test.ts` | The selection helpers the matrix relies on place their ranges correctly. | no |
 | `workaround/*.test.ts` | Not part of the report: the stopgap's own contract — what it changes, and that it changes it only for the editor it is added to. Green. | no |
 
-Start with `tests/attribute-hashing.test.ts` — it needs no licence key, no server, and runs in under a second. Two of its four tests fail, and the failure message names the two keys that ought to have matched.
+The suites are Vitest projects and a `writeback` tag, each with its own command: `pnpm test` (repro without the tag), `pnpm test:inline`, `pnpm test:block` and `pnpm test:fragments` (one issue each), `pnpm test:probes` (only the tag; add a directory, as in `pnpm test:probes tests/block`, for one issue), `pnpm test:utils`, `pnpm test:workaround`, `pnpm test:all` (everything once). Running a matrix file directly runs both halves; add `--tags-filter='!writeback'` for the report alone.
 
-The suites are Vitest projects and a `writeback` tag, each with its own command: `pnpm test` (repro without the tag), `pnpm test:probes` (only the tag), `pnpm test:utils`, `pnpm test:workaround`, `pnpm test:all` (everything once). Running a matrix file directly runs both halves; add `--tags-filter='!writeback'` for the report alone.
-
-Full detail lives in [docs/comment-anchor-lost.md](docs/comment-anchor-lost.md) and [docs/block-anchor-undone.md](docs/block-anchor-undone.md). The interim workaround, its mechanisms and its ablation are in [workaround/README.md](workaround/README.md).
+Each issue's write-up is linked from [the table at the top](#tiptap-comments-reproduction). The interim workaround, its mechanisms and its ablation are in [workaround/README.md](workaround/README.md).
