@@ -402,4 +402,83 @@ describe("CollabWriteback", () => {
       expect(mark?.attrs).toEqual({ kind: "note", status: "open" });
     });
   });
+
+  describe("mark key order", () => {
+    /**
+     * An overlapping mark — several may cover one run — whose schema declares
+     * `zeta` before `alpha`. y-prosemirror keys an overlapping mark in Yjs by
+     * a hash of its JSON, so its key order is part of its identity.
+     */
+    const Tag = Mark.create({
+      name: "tag",
+      excludes: "",
+      addAttributes: () => ({
+        zeta: { default: null },
+        alpha: { default: null },
+      }),
+      parseHTML: () => [{ tag: "span[data-tag]" }],
+      renderHTML: () => ["span", { "data-tag": "" }, 0],
+    });
+
+    /** Each stored format on the first paragraph's text: Yjs key → value keys. */
+    function storedFormats(ydoc: Y.Doc): Array<[string, string[]]> {
+      const paragraph = ydoc.getXmlFragment(FIELD).get(0) as Y.XmlElement;
+      const text = paragraph.get(0) as Y.XmlText;
+      return text
+        .toDelta()
+        .flatMap((op: { attributes?: Record<string, object> }) =>
+          Object.entries(op.attributes ?? {}).map(
+            ([key, value]): [string, string[]] => [key, Object.keys(value)],
+          ),
+        );
+    }
+
+    test("sorts a new mark's attributes by key", () => {
+      const ydoc = new Y.Doc();
+      const editor = attach(ydoc, [plainKit, Tag, CollabWriteback]);
+      editor.commands.insertContent(TARGET);
+      editor
+        .chain()
+        .setTextSelection({ from: 1, to: 1 + TARGET.length })
+        .setMark("tag", { zeta: "z", alpha: "a" })
+        .run();
+
+      expect(
+        Object.keys(editor.state.doc.nodeAt(1)?.marks[0]?.attrs ?? {}),
+      ).toEqual(["alpha", "zeta"]);
+      expect(storedFormats(ydoc).map(([, keys]) => keys)).toEqual([
+        ["alpha", "zeta"],
+      ]);
+    });
+
+    test("keeps the stored order of a mark read from Yjs", () => {
+      // Stored by a stock client, in schema order: `zeta` then `alpha`.
+      const ydoc = prosemirrorJSONToYDoc(
+        getSchema([plainKit, Tag]),
+        {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: TARGET,
+                  marks: [{ type: "tag", attrs: { zeta: "z", alpha: "a" } }],
+                },
+              ],
+            },
+          ],
+        },
+        FIELD,
+      );
+      const before = storedFormats(ydoc);
+
+      // An edit elsewhere in the paragraph re-writes the run's marks.
+      editFirstBlock(attach(ydoc, [plainKit, Tag, CollabWriteback]));
+
+      expect(before.map(([, keys]) => keys)).toEqual([["zeta", "alpha"]]);
+      expect(storedFormats(ydoc)).toEqual(before);
+    });
+  });
 });

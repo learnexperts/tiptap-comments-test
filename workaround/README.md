@@ -20,7 +20,8 @@ Nothing else is exported for `tests/`. Biome enforces both directions: `tests/` 
 
 | File | Holds |
 |---|---|
-| `collabWriteback.ts` | The extension, and mechanism 1 |
+| `collabWriteback.ts` | The extension |
+| `markWriteback.ts` | Mechanism 1 |
 | `elementWriteback.ts` | Mechanisms 2 and 3 |
 | `writebackScope.ts` | Which writes are in scope: y-sync transactions on registered fragments, and each fragment's schema defaults |
 
@@ -30,7 +31,7 @@ Its contract is tested offline beside it, in [`collabWriteback.test.ts`](collabW
 
 | # | Mechanism | Defect | Needed by |
 |---|---|---|---|
-| 1 | Every mark type's `create` leaves out attributes it was not given whose default is `null`, and keeps the given key order | [Inline anchor lost on `textStyle`](../docs/comment-anchor-lost.md) | the four single-style cases in the comment matrix; a block anchor on styled text; any mark whose attributes several extensions declare |
+| 1 | Every mark type's `create` leaves out attributes it was not given whose default is `null`. A mark read from Yjs keeps its stored key order; any other mark is sorted by key | [Inline anchor lost on `textStyle`](../docs/comment-anchor-lost.md) | the four single-style cases in the comment matrix; a block anchor on styled text; any mark whose attributes several extensions declare |
 | 2 | A rebuilt block takes the replaced element's key order and key set | [Block anchor undone](../docs/block-anchor-undone.md) | every block stored out of schema order or without a default |
 | 3 | A schema default is not written onto an existing element that lacks it | [Block anchor undone](../docs/block-anchor-undone.md) | an inline anchor on a block stored without a default; keeps 2's copies stable |
 
@@ -50,7 +51,12 @@ Each mechanism was removed in turn and the comment matrix, the block probe and t
 
 The block probe here is the investigation's original 23 comment-only cases, which `tests/utils/blockMatrix.ts` distils.
 
-Mechanism 1 was ablated when it covered only `textStyle`. It now covers every mark type, with two changes that make that safe. It drops only `null`-default keys, because a non-null default is behaviour (a link's `target`). And it keeps the given key order instead of sorting, because y-prosemirror keys an overlapping mark (such as `inlineThread`) by a hash of its JSON, which depends on order. Both matrices are unchanged by the generalisation.
+Mechanism 1 was ablated when it covered only `textStyle` and sorted every mark's keys. It now covers every mark type, with two changes that make that safe:
+
+- **It drops only `null`-default keys.** A non-null default is behaviour (a link's `target`).
+- **It sorts only new marks.** A mark built from Yjs keeps the stored key order, because y-prosemirror keys an overlapping mark (such as `inlineThread`) by a hash of its JSON, which depends on order. Re-sorting a mark that a stock client stored would compute a different key and rewrite it. "Built from Yjs" means its attrs object is one `Y.Text.toDelta()` returned, which y-prosemirror passes straight to `schema.mark`, so `toDelta` tags those objects. Sorting is by code unit, not locale, so every client sorts the same way.
+
+Both matrices are unchanged by the generalisation, and the contract test pins each half of the ordering rule.
 
 ### Limits
 
