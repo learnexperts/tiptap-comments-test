@@ -20,20 +20,11 @@ import { afterEach, describe, expect, test } from "vitest";
 import * as Y from "yjs";
 import { CollabWriteback } from "./collabWriteback";
 
-/**
- * The workaround's own contract, offline: what `CollabWriteback` changes, and
- * that it changes it only for the editor it was added to.
- *
- * Every assertion reads what ends up stored in Yjs, through real editors on
- * real documents — the interface the workaround presents.
- *
- * Self-contained, so it travels with the directory: `workaround/` never
- * imports from `tests/` (ADR 0002).
- */
+// CollabWriteback's contract, read from what Yjs stores. Self-contained:
+// workaround/ never imports from tests/ (ADR 0002).
 
 const plainKit = StarterKit.configure({ undoRedo: false, trailingNode: false });
 
-/** A paragraph with a non-null default, as an indent extension adds. */
 const Paragraph = Node.create({
   name: "paragraph",
   priority: 1000,
@@ -47,7 +38,6 @@ const Paragraph = Node.create({
   renderHTML: () => ["p", 0],
 });
 
-/** A code block declaring `language` before `theme` (default `"dark"`). */
 const CodeBlock = Node.create({
   name: "codeBlock",
   group: "block",
@@ -62,7 +52,6 @@ const CodeBlock = Node.create({
   renderHTML: () => ["pre", ["code", 0]],
 });
 
-/** Blocks whose attributes have a schema order and non-null defaults. */
 const blockNodes: Extensions = [
   StarterKit.configure({
     undoRedo: false,
@@ -98,7 +87,6 @@ function attach(ydoc: Y.Doc, extensions: Extensions): Editor {
   return editor;
 }
 
-/** A document whose one block is stored with exactly these attributes, in order. */
 function storedBlock(nodeName: string, attrs: Array<[string, unknown]>): Y.Doc {
   const ydoc = new Y.Doc();
   const element = new Y.XmlElement(nodeName);
@@ -111,7 +99,6 @@ function storedBlock(nodeName: string, attrs: Array<[string, unknown]>): Y.Doc {
   return ydoc;
 }
 
-/** Each top-level element's attribute keys, in stored order. */
 function storedKeyOrder(ydoc: Y.Doc): string[][] {
   const order: string[][] = [];
   const visit = (type: Y.XmlFragment | Y.XmlElement) => {
@@ -126,7 +113,6 @@ function storedKeyOrder(ydoc: Y.Doc): string[][] {
   return order;
 }
 
-/** The `textStyle` value of each text run Yjs stores, in document order. */
 function storedTextStyles(ydoc: Y.Doc): unknown[] {
   const styles: unknown[] = [];
   const visit = (type: Y.XmlFragment | Y.XmlElement) => {
@@ -144,12 +130,11 @@ function storedTextStyles(ydoc: Y.Doc): unknown[] {
   return styles;
 }
 
-/** Types one character at the end of the first block, re-syncing it. */
+/** Re-syncs the first block by typing at its end. */
 function editFirstBlock(editor: Editor) {
   editor.commands.insertContentAt(1 + TARGET.length, "!");
 }
 
-/** A paragraph whose `marginLeft` defaults to `value`, for a second schema. */
 const marginLeftDefault = (value: number) =>
   Extension.create({
     name: "marginLeftDefault",
@@ -198,8 +183,6 @@ describe("CollabWriteback", () => {
     });
 
     test("is judged by each editor's own schema", () => {
-      // Each editor skips its own default and only its own: the second
-      // schema's 8 is not a default for the first, whichever registered last.
       const zero = storedBlock("paragraph", []);
       const eight = storedBlock("paragraph", []);
       const first = attach(zero, [...blockNodes, CollabWriteback]);
@@ -218,7 +201,6 @@ describe("CollabWriteback", () => {
   });
 
   describe("wrapping a block in a block anchor", () => {
-    /** Wraps the first block in `blockThread`, as a node-selection thread does. */
     function wrapFirstBlock(editor: Editor) {
       expect(
         editor
@@ -271,8 +253,7 @@ describe("CollabWriteback", () => {
   });
 
   test("writes back a textStyle value Yjs stores with null keys unchanged", () => {
-    // Written by a client whose schema has `color`, so Yjs holds
-    // `{ backgroundColor, color: null }`. Commenting must not rewrite it.
+    // Stored by a client whose schema has `color`.
     const seed: JSONContent = {
       type: "doc",
       content: [
@@ -318,10 +299,7 @@ describe("CollabWriteback", () => {
   });
 
   describe("any mark, not only textStyle", () => {
-    /**
-     * A mark whose attributes come from several extensions, as `textStyle`'s
-     * do: `kind` always, plus whatever `extra` a wider schema declares.
-     */
+    /** A mark whose attributes several extensions declare, as `textStyle`'s. */
     const annotation = (extra: Record<string, { default: unknown }> = {}) =>
       Mark.create({
         name: "annotation",
@@ -425,11 +403,7 @@ describe("CollabWriteback", () => {
   });
 
   describe("mark key order", () => {
-    /**
-     * An overlapping mark — several may cover one run — whose schema declares
-     * `zeta` before `alpha`. y-prosemirror keys an overlapping mark in Yjs by
-     * a hash of its JSON, so its key order is part of its identity.
-     */
+    // Overlapping, so y-prosemirror keys it in Yjs by a hash of its JSON.
     const Tag = Mark.create({
       name: "tag",
       excludes: "",
@@ -441,7 +415,6 @@ describe("CollabWriteback", () => {
       renderHTML: () => ["span", { "data-tag": "" }, 0],
     });
 
-    /** Each stored format on the first paragraph's text: Yjs key → value keys. */
     function storedFormats(ydoc: Y.Doc): Array<[string, string[]]> {
       const paragraph = ydoc.getXmlFragment(FIELD).get(0) as Y.XmlElement;
       const text = paragraph.get(0) as Y.XmlText;
@@ -473,7 +446,6 @@ describe("CollabWriteback", () => {
     });
 
     test("keeps the stored order of a mark read from Yjs", () => {
-      // Stored by a stock client, in schema order: `zeta` then `alpha`.
       const ydoc = prosemirrorJSONToYDoc(
         getSchema([plainKit, Tag]),
         {
@@ -495,7 +467,6 @@ describe("CollabWriteback", () => {
       );
       const before = storedFormats(ydoc);
 
-      // An edit elsewhere in the paragraph re-writes the run's marks.
       editFirstBlock(attach(ydoc, [plainKit, Tag, CollabWriteback]));
 
       expect(before.map(([, keys]) => keys)).toEqual([["zeta", "alpha"]]);

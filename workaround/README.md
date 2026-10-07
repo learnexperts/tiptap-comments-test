@@ -24,6 +24,7 @@ Nothing else is exported for `tests/`. Biome enforces both directions: `tests/` 
 | `markWriteback.ts` | Mechanism 1, and mechanism 3 for marks |
 | `elementWriteback.ts` | Mechanism 2, and mechanism 3 for elements |
 | `writebackScope.ts` | Which writes are in scope (y-sync transactions on registered fragments), each fragment's node and mark defaults, and the one rule both halves of mechanism 3 apply |
+| `patchMethod.ts` | Replaces a prototype method once, however many editors install it |
 
 Its contract is tested offline beside it, in [`collabWriteback.test.ts`](collabWriteback.test.ts) (`pnpm test:workaround`, green, run on pre-push). The test is self-contained so it obeys the same rule and travels with the directory.
 

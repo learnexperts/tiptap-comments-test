@@ -1,13 +1,6 @@
 import * as Y from "yjs";
 
-/**
- * Records, as readable lines, what local transactions write under a Yjs
- * field: elements inserted (with their attributes in stored order), elements
- * deleted, attribute changes and text deltas.
- *
- * A comment-only connection is judged on exactly these writes, so the lines
- * are the evidence a failing case attaches.
- */
+/** Records local writes under `field` as readable lines: what the server judges. */
 export function recordYWrites(ydoc: Y.Doc, field = "default") {
   const lines: string[] = [];
 

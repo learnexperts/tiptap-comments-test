@@ -2,21 +2,9 @@ import { Extension, type Extensions, Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { BlockThread, InlineThread } from "@tiptap-pro/extension-comments";
 
-/**
- * A schema shaped like a production course editor's, for the block-anchor
- * matrix. What matters is that its blocks carry several attributes, some with
- * non-null defaults — the case where the stored order of an element's
- * attribute keys can differ from the order the schema declares them in.
- *
- * - `paragraph` has `textAlign`, `lineHeight` and `marginLeft` (default `0`),
- *   as an editor with text-align, line-height and indent extensions does.
- * - `codeBlock` has `language` then `theme` (default `"dark"`), as a lowlight
- *   code block with a theme attribute added does.
- * - `callout` holds blocks through a group rather than `block+`, so the block
- *   anchor joins that group too.
- */
+// Blocks with several attributes, some with non-null defaults, shaped like a
+// production course editor's: the block-anchor matrix's schema.
 
-/** The group a callout's content is drawn from. */
 const CALLOUT_CONTENT = "calloutContent";
 
 const Paragraph = Node.create({
@@ -80,10 +68,7 @@ export const blockNodes: Extensions = [
   BlockAttributes,
 ];
 
-/**
- * The comment anchors, with the block anchor in the callout's group.
- * Registered with `Comments` in place of CommentsKit's own anchors.
- */
+/** The comment anchors, with the block anchor allowed inside a callout. */
 export const blockAnchors: Extensions = [
   BlockThread.extend({ group: `block ${CALLOUT_CONTENT}` }),
   InlineThread,

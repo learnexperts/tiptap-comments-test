@@ -22,37 +22,22 @@ import { createThreadAtSelection } from "./thread";
 import { waitForSync } from "./waitForSync";
 import { recordYWrites } from "./yWrites";
 
-/**
- * The block-anchor matrix: blocks whose stored attributes differ from what
- * y-prosemirror rebuilds, anchored by a comment-only session.
- *
- * A block anchor wraps the block in `blockThread`. Yjs cannot move an element,
- * so the update deletes the block and inserts a copy rebuilt from the
- * ProseMirror node: attribute keys in schema order, every non-null default
- * present. The server keeps that from a comment-only connection only when the
- * copy matches the stored element, key order included.
- *
- * Seeded cases control the stored order through the seed. The server's JSON
- * import gives every node of a type the key order of the first one it meets,
- * so a seed that fixes an order holds a single block of that type. Authored
- * cases have an editor session build the block first, which is how stored
- * order drifts in practice: a key set after insert is appended.
- *
- * `tests/block-anchor.test.ts` runs it on stock Tiptap and
- * `tests/probes/block-anchor.probe.ts` with the workaround, like the comment
- * matrix (see `docs/adr/0001-tests-are-a-bug-report.md`).
- */
+// The block-anchor matrix (docs/block-anchor-undone.md): a comment-only
+// session anchors a thread on blocks whose stored attributes differ from what
+// y-prosemirror rebuilds. Run stock by tests/block-anchor.test.ts and with the
+// workaround by tests/probes/block-anchor.probe.ts.
+//
+// The server's JSON import gives every node of a type the key order of the
+// first one it meets, so a seed that fixes an order holds one block of a type.
 
 const TARGET = "[target]";
 
 interface BlockCase {
   label: string;
-  /** Seeded as the server stores it; attribute order as written here. */
-  content: JSONContent;
-  /** Edits an editor session makes before the comment, if any. */
-  author?: (editor: Editor) => void;
-  /** Where the comment-only session anchors its thread. */
-  select: (editor: Editor) => Selection;
+  seed: JSONContent;
+  /** Run in an editor session before the comment. */
+  editFirst?: (editor: Editor) => void;
+  anchorOn: (editor: Editor) => Selection;
 }
 
 const text = (value: string): JSONContent => ({ type: "text", text: value });
@@ -73,7 +58,6 @@ const doc = (...content: JSONContent[]): JSONContent => ({
   content,
 });
 
-/** Everything before the target block, written as an editor writes it. */
 const BEFORE = paragraph({ marginLeft: 0 }, "[before]");
 
 function targetBlock(editor: Editor, nodeType: string) {
@@ -101,33 +85,33 @@ const atEnd = (editor: Editor) => editor.state.doc.content.size;
 const cases: BlockCase[] = [
   {
     label: "a paragraph stored in schema order",
-    content: doc(paragraph({ textAlign: "center", marginLeft: 0 })),
-    select: selectBlock("paragraph"),
+    seed: doc(paragraph({ textAlign: "center", marginLeft: 0 })),
+    anchorOn: selectBlock("paragraph"),
   },
   {
     label: "a paragraph stored out of schema order",
-    content: doc(paragraph({ marginLeft: 0, textAlign: "center" })),
-    select: selectBlock("paragraph"),
+    seed: doc(paragraph({ marginLeft: 0, textAlign: "center" })),
+    anchorOn: selectBlock("paragraph"),
   },
   {
     label: "a code block stored out of schema order",
-    content: doc(codeBlock({ theme: "dark", language: "javascript" })),
-    select: selectBlock("codeBlock"),
+    seed: doc(codeBlock({ theme: "dark", language: "javascript" })),
+    anchorOn: selectBlock("codeBlock"),
   },
   {
     label: "a paragraph stored without its marginLeft default",
-    content: doc(paragraph({})),
-    select: selectBlock("paragraph"),
+    seed: doc(paragraph({})),
+    anchorOn: selectBlock("paragraph"),
   },
   {
     label: "text in a paragraph stored without its marginLeft default",
-    content: doc(paragraph({})),
-    select: selectTextIn("paragraph"),
+    seed: doc(paragraph({})),
+    anchorOn: selectTextIn("paragraph"),
   },
   {
     label: "a horizontal rule",
-    content: doc(BEFORE, { type: "horizontalRule" }),
-    select: (editor) =>
+    seed: doc(BEFORE, { type: "horizontalRule" }),
+    anchorOn: (editor) =>
       asNodeSelection(
         editor.state.doc,
         queryOrFail(editor.$doc, { nodeType: "horizontalRule" }),
@@ -135,19 +119,19 @@ const cases: BlockCase[] = [
   },
   {
     label: "a paragraph inside a callout",
-    content: doc(BEFORE, {
+    seed: doc(BEFORE, {
       type: "callout",
       content: [
         paragraph({ marginLeft: 0 }, "[first]"),
         paragraph({ marginLeft: 0 }),
       ],
     }),
-    select: selectBlock("paragraph"),
+    anchorOn: selectBlock("paragraph"),
   },
   {
     label: "a code block inserted with its language",
-    content: doc(BEFORE),
-    author: (editor) => {
+    seed: doc(BEFORE),
+    editFirst: (editor) => {
       editor
         .chain()
         .insertContentAt(atEnd(editor), {
@@ -157,12 +141,12 @@ const cases: BlockCase[] = [
         })
         .run();
     },
-    select: selectBlock("codeBlock"),
+    anchorOn: selectBlock("codeBlock"),
   },
   {
     label: "a code block whose language was picked after insert",
-    content: doc(BEFORE),
-    author: (editor) => {
+    seed: doc(BEFORE),
+    editFirst: (editor) => {
       editor
         .chain()
         .insertContentAt(atEnd(editor), {
@@ -176,12 +160,12 @@ const cases: BlockCase[] = [
         .updateAttributes("codeBlock", { language: "javascript" })
         .run();
     },
-    select: selectBlock("codeBlock"),
+    anchorOn: selectBlock("codeBlock"),
   },
   {
     label: "a paragraph centred after it was typed",
-    content: doc(BEFORE),
-    author: (editor) => {
+    seed: doc(BEFORE),
+    editFirst: (editor) => {
       editor
         .chain()
         .insertContentAt(atEnd(editor), {
@@ -195,19 +179,16 @@ const cases: BlockCase[] = [
         .updateAttributes("paragraph", { textAlign: "center" })
         .run();
     },
-    select: selectBlock("paragraph"),
+    anchorOn: selectBlock("paragraph"),
   },
 ];
 
-/**
- * Runs `author` in an editor session on `documentName`, then waits until the
- * comment-only `editor` has received the result.
- */
-async function authorAsEditor(
+/** Runs `edit` as an editor, then waits for `commenter` to receive it. */
+async function editAsEditor(
   documentName: string,
   configuration: Configuration,
-  author: (editor: Editor) => void,
-  editor: Editor,
+  edit: (editor: Editor) => void,
+  commenter: Editor,
 ) {
   const provider = new TiptapCollabProvider({
     name: documentName,
@@ -221,24 +202,24 @@ async function authorAsEditor(
     }),
   });
   await waitForSync(provider);
-  const authorEditor = new Editor({
+  const editor = new Editor({
     extensions: configuration({ syncedProvider: provider }),
   });
 
   try {
-    author(authorEditor);
+    edit(editor);
     await waitUntilFlushed(provider);
     await vi.waitUntil(
-      () => query(editor.$doc, (node) => node.textContent === TARGET) !== null,
+      () =>
+        query(commenter.$doc, (node) => node.textContent === TARGET) !== null,
       { timeout: 5_000 },
     );
   } finally {
-    authorEditor.destroy();
+    editor.destroy();
     provider.destroy();
   }
 }
 
-/** Registers the matrix under `label`, every case built from `configuration`. */
 export function describeBlockMatrix(
   label: string,
   configuration: Configuration,
@@ -249,8 +230,8 @@ export function describeBlockMatrix(
 
       describe.for<BlockCase>(cases)(
         "on $label",
-        ({ content, author, select }) => {
-          test.override("seedContent", content);
+        ({ seed, editFirst, anchorOn }) => {
+          test.override("seedContent", seed);
 
           test("keeps the anchor after sync", { timeout: 30_000 }, async ({
             editor,
@@ -258,12 +239,20 @@ export function describeBlockMatrix(
             documentName,
             annotate,
           }) => {
-            if (author) {
-              await authorAsEditor(documentName, configuration, author, editor);
+            if (editFirst) {
+              await editAsEditor(
+                documentName,
+                configuration,
+                editFirst,
+                editor,
+              );
             }
 
             const writes = recordYWrites(provider.document);
-            const { threadId } = await createThreadAtSelection(editor, select);
+            const { threadId } = await createThreadAtSelection(
+              editor,
+              anchorOn,
+            );
 
             expect(
               threadExistsInDocument(editor, threadId),
