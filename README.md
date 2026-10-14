@@ -7,7 +7,7 @@ A minimal reproduction of four ways a TipTap collab + CommentsKit **comment-only
 | 1 | An inline comment on styled text is lost | [docs/comment-anchor-lost.md](docs/comment-anchor-lost.md) | [`tests/inline/`](tests/inline) | `pnpm test:inline` | reported |
 | 2 | A block comment is undone when the rebuilt copy differs from the stored block | [docs/block-anchor-undone.md](docs/block-anchor-undone.md) | [`tests/block/`](tests/block) | `pnpm test:block` | [addendum to 1](docs/tiptap/addendum-block-anchor.txt) |
 | 3 | A block comment is undone in a fragment nested in a `Y.Map` | [docs/block-anchor-fragments.md](docs/block-anchor-fragments.md) | [`tests/fragments/`](tests/fragments) | `pnpm test:fragments` | [new issue](docs/tiptap/nested-fragments.txt) |
-| 4 | An inline comment is undone where an author's style ranges overlap | [docs/comment-anchor-overlapping-styles.md](docs/comment-anchor-overlapping-styles.md) | [`tests/overlap/`](tests/overlap) | `pnpm test:overlap` | not yet |
+| 4 | An inline comment is undone where an author's style ranges overlap | [docs/comment-anchor-overlapping-styles.md](docs/comment-anchor-overlapping-styles.md) | [`tests/overlap/`](tests/overlap) | `pnpm test:overlap` | [addendum to 1](docs/tiptap/addendum-overlapping-styles.txt) |
 
 These commands are expected to fail: every test asserts what should happen, so the red ones are the report and turn green when an issue is fixed ([ADR 0001](docs/adr/0001-tests-are-a-bug-report.md)).
 

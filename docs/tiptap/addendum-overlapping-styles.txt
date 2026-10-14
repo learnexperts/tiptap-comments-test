@@ -1,0 +1,57 @@
+Draft reply to our existing TipTap support request ("Comment threads lose their anchor on styled text"), after the block-comment addendum. It is an addendum, not a new request.
+
+Same conventions as the first report: no markdown, paragraphs on single lines, indented blocks are the only place line breaks matter. Keep it in sync with docs/comment-anchor-overlapping-styles.md.
+
+
+---
+
+Hello again. A second addendum: another way an inline comment by a comment-only user is undone on styled text. Unlike our first report, every mark value the comment writes here is unchanged. What changes is how Yjs stores the style.
+
+WHAT USERS SEE
+
+An author applies two styles over overlapping ranges, for example a color on some text and then a font size over part of it. A comment-only user then comments on that paragraph. The comment appears, then disappears on sync. The server logs:
+
+    Undoing change to document <doc> from guest:<sub> because non-allowed type was touched. Touched types: default. Touched attributes: textStyle={"fontFamily":null,"fontSize":null,"color":"#206487","backgroundColor":"#C6E7FF"}
+
+This comes from ordinary editing in the editor, with no unusual data. We first saw it in production.
+
+WHY
+
+Yjs stores a style as format markers in the text, each meaning "from here, textStyle is X". Take the paragraph "[before] [one][two][three] [after]". The author colors [one][two], then sets the font size on [two][three]. For the second step, y-prosemirror writes the full style of each part of the paragraph as consecutive retain ops:
+
+    [one]     {color}
+    [two]     {color, fontSize}
+    [three]   {fontSize}
+
+Yjs formats each op on its own. At the end of an op it writes a marker that restores the style that applied before, so the text after keeps it. For [two] that restores {color}, and the op for [three] then writes {fontSize} at the same offset. The stored markers are:
+
+    @9   {color}
+    @14  {color, fontSize}
+    @19  {color}       <- restores the style before [two]
+    @19  {fontSize}    <- starts [three]
+    @26  null
+
+The {color} marker at 19 applies to no character: the marker after it replaces it at once. We call it a dead marker. Setting the second style over the start of the first leaves a dead null marker in the same way. Yjs's cleanupYTextFormatting does not remove either.
+
+Adding a comment makes updateYText re-write every mark on the paragraph, as in our first report. When Yjs's formatting walk reaches the dead marker, the marker disagrees with the value being written, so Yjs deletes it and writes the next marker again. Every character keeps its style, but the update deletes and inserts textStyle format items, and the comment-only check undoes the whole update, inlineThread mark included.
+
+REPRO
+
+    pnpm test:overlap
+
+18 cases, 12 red. tests/overlap/dead-marker.test.ts needs no server: it styles the paragraph through an editor, applies an inlineThread mark from a second client, and asserts that no textStyle marker is added or deleted (4 of 6 red; each case attaches the markers before and after). tests/overlap/overlapping-styles.test.ts runs the same documents against the server: a full-rights session styles a paragraph seeded through the REST API, then a comment-only session comments on it (8 of 12 red).
+
+    color, then font size over its end         undone
+    color, then font size over its start       undone
+    color, then background over its end        undone
+    color, then background over its start      undone
+    color alone                                kept
+    color, then font size inside it            kept
+
+Each style pair is undone for a selection across every style and for one inside a single style. The REST API stores styles without dead markers, so documents seeded through it do not show this.
+
+WHAT WE EXPECT
+
+As before, a comment that changes no style should not count as a style edit. Here the check would have to compare the style each character has before and after the update, rather than which format items the update touched. Alternatively, Yjs could avoid writing a marker that is replaced at once, or avoid deleting one whose removal changes no character; we are not sure which side you would prefer to raise it on. Rejecting only the disallowed part of an update, instead of the whole update, would also keep the comment.
+
+Our client-side stopgap does not help here. It keeps a stored mark value where the written one means the same, and in these cases every value already does. Write-up: docs/comment-anchor-overlapping-styles.md.
