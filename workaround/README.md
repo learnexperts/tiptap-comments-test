@@ -72,7 +72,7 @@ The two defects have independent removal conditions:
 - **Mechanism 1** goes when the inline defect is fixed: y-prosemirror compares mark values by meaning, or the comment-only check stops discarding the whole update.
 - **Mechanisms 2 to 4** go when the block defect is fixed: the comment-only check compares element attributes as a set, treats absent as default and an empty text as no text, or y-prosemirror stops rebuilding unchanged elements.
 
-It does not cover the other two ways a guest's block comment is undone: `trailingNode` adding a paragraph ([consumer-side](../docs/block-anchor-trailing-node.md)), and a fragment the server does not know ([server-side](../docs/block-anchor-fragments.md)). Neither is a write that says the same as what Yjs stores.
+It does not cover the other two ways a guest's block comment is undone: `trailingNode` adding a paragraph ([consumer-side](../docs/block-anchor-trailing-node.md)), and a fragment the server does not know ([server-side](../docs/block-anchor-fragments.md)). Neither is a write that says the same as what Yjs stores. Nor does it cover an inline comment on text whose style ranges overlap ([issue 4](../docs/comment-anchor-overlapping-styles.md)): every value there says the same, but Yjs deletes a dead `textStyle` marker while it writes them.
 
 The matching red tests in `pnpm test` turning green is the signal for each.
 

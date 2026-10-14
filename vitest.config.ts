@@ -51,7 +51,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "repro",
-          include: ["tests/{inline,block,fragments}/*.test.ts"],
+          include: ["tests/{inline,block,fragments,overlap}/*.test.ts"],
         },
       },
     ],

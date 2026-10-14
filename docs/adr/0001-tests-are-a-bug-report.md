@@ -7,9 +7,10 @@ See the considered options and consequences. Amended again 2026-10-07: the
 report is three issues, one directory and one command each
 (`tests/{inline,block,fragments}`). Issue 3 is stock-only, since the workaround
 does not address it. `attribute-hashing.test.ts` was removed: it showed a
-shape-sensitivity that plays no part in the failing cases._
+shape-sensitivity that plays no part in the failing cases. Amended 2026-10-14:
+a fourth issue, `tests/overlap`, stock-only like issue 3._
 
-This repository exists to communicate three TipTap collab + CommentsKit issues
+This repository exists to communicate four TipTap collab + CommentsKit issues
 to the TipTap team. `tests/` is the artifact we hand them, so it is optimised for a
 stranger reading it once — not for coverage, and not for CI. Each file makes one
 claim, and a failing test *is* the report rather than a problem to fix.
@@ -17,7 +18,7 @@ claim, and a failing test *is* the report rather than a problem to fix.
 ## What this means in practice
 
 - **`pnpm test` is expected to fail.** Tests in `tests/inline/`,
-  `tests/block/` and `tests/fragments/` are red because the issues are real. A green
+  `tests/block/`, `tests/fragments/` and `tests/overlap/` are red because the issues are real. A green
   default run would mean we had stopped reproducing a defect. The failures are
   indexed in the README so a *new* failure is still distinguishable from a
   documented one.

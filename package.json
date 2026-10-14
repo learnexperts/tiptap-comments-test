@@ -7,6 +7,7 @@
     "test:inline": "vitest run --project=repro --tags-filter='!writeback' tests/inline",
     "test:block": "vitest run --project=repro --tags-filter='!writeback' tests/block",
     "test:fragments": "vitest run --project=repro --tags-filter='!writeback' tests/fragments",
+    "test:overlap": "vitest run --project=repro --tags-filter='!writeback' tests/overlap",
     "test:utils": "vitest run --project=utils",
     "test:workaround": "vitest run --project=workaround",
     "test:probes": "vitest run --project=repro --tags-filter=writeback",

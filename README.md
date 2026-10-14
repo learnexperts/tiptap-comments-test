@@ -1,12 +1,13 @@
 # Tiptap Comments Reproduction
 
-A minimal reproduction of three ways a TipTap collab + CommentsKit **comment-only** connection (`readonlyDocumentNames` + `commentDocumentNames`) loses a comment. In each, the comment appears locally, then the server undoes the whole update on sync and the thread is left with nothing to point at.
+A minimal reproduction of four ways a TipTap collab + CommentsKit **comment-only** connection (`readonlyDocumentNames` + `commentDocumentNames`) loses a comment. In each, the comment appears locally, then the server undoes the whole update on sync and the thread is left with nothing to point at.
 
 | # | Issue | Write-up | Tests | Run | With Tiptap |
 |---|---|---|---|---|---|
 | 1 | An inline comment on styled text is lost | [docs/comment-anchor-lost.md](docs/comment-anchor-lost.md) | [`tests/inline/`](tests/inline) | `pnpm test:inline` | reported |
 | 2 | A block comment is undone when the rebuilt copy differs from the stored block | [docs/block-anchor-undone.md](docs/block-anchor-undone.md) | [`tests/block/`](tests/block) | `pnpm test:block` | [addendum to 1](docs/tiptap/addendum-block-anchor.txt) |
 | 3 | A block comment is undone in a fragment nested in a `Y.Map` | [docs/block-anchor-fragments.md](docs/block-anchor-fragments.md) | [`tests/fragments/`](tests/fragments) | `pnpm test:fragments` | [new issue](docs/tiptap/nested-fragments.txt) |
+| 4 | An inline comment is undone where an author's style ranges overlap | [docs/comment-anchor-overlapping-styles.md](docs/comment-anchor-overlapping-styles.md) | [`tests/overlap/`](tests/overlap) | `pnpm test:overlap` | not yet |
 
 These commands are expected to fail: every test asserts what should happen, so the red ones are the report and turn green when an issue is fixed ([ADR 0001](docs/adr/0001-tests-are-a-bug-report.md)).
 
@@ -21,6 +22,10 @@ These commands are expected to fail: every test asserts what should happen, so t
 > **3. [A block comment is undone outside a root fragment the server knows.](docs/block-anchor-fragments.md)**
 >
 > The server accepts a block wrap only in the root fragment `default`, or in a root fragment declared with `provider.setFieldType`. A fragment nested in a root `Y.Map`, which is how we store every page, is undone however it is declared. Inline comments are kept everywhere.
+
+> **4. [An inline comment is undone where an author's style ranges overlap.](docs/comment-anchor-overlapping-styles.md)**
+>
+> Two overlapping styles leave a dead `textStyle` marker in Yjs, one the next marker replaces at once. Adding a comment re-writes the paragraph's marks and Yjs deletes the dead marker. No style changes, but the server counts the deletion as a style edit and undoes the comment. Our workaround does not help, because every mark value is unchanged.
 
 ## Setup
 
@@ -77,13 +82,14 @@ The server will be available at `localhost:3030`.
 In a separate terminal:
 
 ```sh
-# The report: all three issues (needs Docker, except issue 1's mechanism)
+# The report: all four issues (needs Docker, except issue 1's and 4's mechanisms)
 pnpm test
 
 # One issue at a time
 pnpm test:inline
 pnpm test:block
 pnpm test:fragments
+pnpm test:overlap
 
 # Issues 1 and 2 with our stopgap applied (needs Docker collab server)
 pnpm test:probes
@@ -124,10 +130,12 @@ Each file makes one claim, and each **asserts the behaviour we expect** — so t
 | `tests/inline/comment.test.ts` | **Issue 1.** On a comment-only connection, that write costs the thread anchor. Stock Tiptap, **4 of 17 red**. | yes |
 | `tests/block/block-anchor.test.ts` | **Issue 2.** A block comment on a block that differs from the rebuilt copy (out of schema order, missing a default, or emptied of its text) loses its anchor. Stock Tiptap, **7 of 12 red**. | yes |
 | `tests/fragments/block-anchor-fragments.test.ts` | **Issue 3.** A block comment loses its anchor outside the root `default` or a root declared with `setFieldType`, and in any fragment nested in a map. Inline comments are kept. **8 of 14 red**. No workaround run. | yes |
+| `tests/overlap/dead-marker.test.ts` | **Issue 4, the mechanism.** Overlapping styles leave a dead `textStyle` marker, and adding a comment deletes it. **4 of 6 red.** | no |
+| `tests/overlap/overlapping-styles.test.ts` | **Issue 4.** On a comment-only connection, that deletion costs the thread anchor. **8 of 12 red**. No workaround run. | yes |
 | `writeback`-tagged runs in the issue 1 and 2 matrix files | **The workaround.** Each matrix again under `with the writeback fix`, which only adds `CollabWriteback` to the extensions: **17/17** and **12/12**. Left out of `pnpm test`; `pnpm test:probes` runs them. | yes |
 | `tests/utils/*.test.ts` | The selection helpers the matrix relies on place their ranges correctly. | no |
 | `workaround/*.test.ts` | Not part of the report: the stopgap's own contract — what it changes, and that it changes it only for the editor it is added to. Green. | no |
 
-The suites are Vitest projects and a `writeback` tag, each with its own command: `pnpm test` (repro without the tag), `pnpm test:inline`, `pnpm test:block` and `pnpm test:fragments` (one issue each), `pnpm test:probes` (only the tag; add a directory, as in `pnpm test:probes tests/block`, for one issue), `pnpm test:utils`, `pnpm test:workaround`, `pnpm test:all` (everything once). Running a matrix file directly runs both halves; add `--tags-filter='!writeback'` for the report alone.
+The suites are Vitest projects and a `writeback` tag, each with its own command: `pnpm test` (repro without the tag), `pnpm test:inline`, `pnpm test:block`, `pnpm test:fragments` and `pnpm test:overlap` (one issue each), `pnpm test:probes` (only the tag; add a directory, as in `pnpm test:probes tests/block`, for one issue), `pnpm test:utils`, `pnpm test:workaround`, `pnpm test:all` (everything once). Running a matrix file directly runs both halves; add `--tags-filter='!writeback'` for the report alone.
 
 Each issue's write-up is linked from [the table at the top](#tiptap-comments-reproduction). The interim workaround, its mechanisms and its ablation are in [workaround/README.md](workaround/README.md).
