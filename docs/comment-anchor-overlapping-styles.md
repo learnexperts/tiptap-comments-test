@@ -66,9 +66,11 @@ Adding a comment makes y-prosemirror re-write every mark on the paragraph, as in
 
 We first saw this in lex-frontend, where a capture of the guest's write showed the deleted marker and the server's undo. The test reproduces that paragraph's shape.
 
-## Not covered by our workaround
+## Our interim workaround (not a recommendation)
 
-`workaround/` compares mark values, and keeps a stored value where the written one says the same. Here every value says the same; the deletion happens inside Yjs while it formats. Run with `CollabWriteback` on the guest, or on both author and guest, the result is the same 8 of 12. Yjs's own `cleanupYTextFormatting` does not remove the dead marker either, so it cannot be cleared on the author's side.
+`workaround/` leaves out of the write every mark that says the same as the stored one ([its README](../workaround/README.md)). Yjs formats a run only for the marks a write names, so with `textStyle` left out it never reaches the dead marker, and the update writes only the `inlineThread` mark. With `CollabWriteback` on the comment-only session, all 12 cases are kept; the author stays stock. The same file runs that half under the `writeback` tag (`pnpm test:probes tests/overlap`).
+
+An earlier version wrote the stored value back instead of leaving the mark out. Every value already said the same, so that changed nothing here and the result stayed 8 of 12: writing a value, even the stored one, makes Yjs format the run for it. Yjs's own `cleanupYTextFormatting` does not remove the dead marker, so it cannot be cleared on the author's side either.
 
 Our existing tests did not see it because the REST API stores styles without dead markers, and the comment matrix seeds every style that way.
 

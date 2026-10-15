@@ -8,7 +8,7 @@ report is three issues, one directory and one command each
 (`tests/{inline,block,fragments}`). Issue 3 is stock-only, since the workaround
 does not address it. `attribute-hashing.test.ts` was removed: it showed a
 shape-sensitivity that plays no part in the failing cases. Amended 2026-10-14:
-a fourth issue, `tests/overlap`, stock-only like issue 3._
+a fourth issue, `tests/overlap`, with a workaround half like issues 1 and 2._
 
 This repository exists to communicate four TipTap collab + CommentsKit issues
 to the TipTap team. `tests/` is the artifact we hand them, so it is optimised for a
@@ -25,8 +25,8 @@ claim, and a failing test *is* the report rather than a problem to fix.
 - **One claim per file.** `writeback-null-attrs.test.ts` shows the inline
   mechanism offline, `comment.test.ts` shows the resulting anchor loss against
   a real server, `block-anchor.test.ts` shows the block defect, and
-  `block-anchor-fragments.test.ts` the nested fragments. The inline and block
-  matrix files also run the same matrix with our interim workaround, under a
+  `block-anchor-fragments.test.ts` the nested fragments. The inline, block and
+  overlap matrix files also run the same matrix with our interim workaround, under a
   `with the writeback fix` describe tagged `writeback`.
 - **The workaround runs are held out of the default run.** `pnpm test` filters
   out the `writeback` tag; `pnpm test:probes` runs only it. Those runs are

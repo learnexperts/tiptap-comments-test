@@ -17,7 +17,7 @@ interface DeltaOp {
   attributes?: Attrs;
 }
 
-/** Writes back a stored mark unchanged wherever the written one says the same. */
+/** Leaves out of a write every mark that says the same as the stored one. */
 export function patchMarkWrites(): void {
   patchMethod(
     Y.Text.prototype,
@@ -31,7 +31,7 @@ export function patchMarkWrites(): void {
         return applyDelta.call(
           this,
           scope && marksOnly
-            ? preferStoredValues(this, delta, scope.defaults.marks)
+            ? withoutUnchangedMarks(this, delta, scope.defaults.marks)
             : delta,
           options,
         );
@@ -39,8 +39,12 @@ export function patchMarkWrites(): void {
   );
 }
 
-/** `delta` split along the stored runs, each saying-the-same value swapped for the stored one. */
-function preferStoredValues(
+/**
+ * `delta` split along the stored runs, without the marks that say the same as
+ * the stored ones. Yjs formats a run only for the marks a write names, so it
+ * leaves every marker of the others as stored, dead ones included.
+ */
+function withoutUnchangedMarks(
   text: Y.Text,
   delta: DeltaOp[],
   defaults: ReadonlyMap<string, AttributeDefaults>,
@@ -64,7 +68,7 @@ function preferStoredValues(
       const length = Math.min(remaining, run.length);
       result.push({
         retain: length,
-        attributes: preferStored(op.attributes, run.attributes, defaults),
+        attributes: withoutUnchanged(op.attributes, run.attributes, defaults),
       });
       index += length;
       remaining -= length;
@@ -88,11 +92,11 @@ function storedRunAt(
 }
 
 /**
- * `written` with each mark that says the same as a stored one left as stored.
+ * `written` without each mark that says the same as a stored one.
  * An overlapping mark's key is a hash of its JSON, so a different shape shows
  * up as removing the stored key and adding a new one; that pair is dropped.
  */
-function preferStored(
+function withoutUnchanged(
   written: Attrs,
   stored: Attrs,
   defaults: ReadonlyMap<string, AttributeDefaults>,
@@ -108,7 +112,7 @@ function preferStored(
 
     if (key in stored) {
       if (sameAs(key)) {
-        result[key] = stored[key];
+        delete result[key];
       }
       continue;
     }

@@ -447,6 +447,87 @@ describe("CollabWriteback", () => {
     });
   });
 
+  describe("a dead textStyle marker", () => {
+    // Two overlapping style ranges leave a marker the next one replaces at
+    // the same offset. A write that formats across it deletes it.
+    const textStyleKit = [
+      plainKit,
+      TextStyle,
+      FontFamily,
+      FontSize,
+      Color,
+      BackgroundColor,
+    ];
+    const STYLED = "[before] [one][two][three] [after]";
+
+    function select(editor: Editor, part: string) {
+      const from = 1 + editor.state.doc.textContent.indexOf(part);
+      return editor.chain().setTextSelection({ from, to: from + part.length });
+    }
+
+    /** A document an author styled, as another client receives it. */
+    function styledByAnAuthor(colorFirstOn: string, thenFontSizeOn: string) {
+      const authored = new Y.Doc();
+      const author = attach(authored, textStyleKit);
+      author.commands.setContent({
+        type: "paragraph",
+        content: [{ type: "text", text: STYLED }],
+      });
+      select(author, colorFirstOn).setColor("#206487").run();
+      select(author, thenFontSizeOn).setFontSize("10px").run();
+
+      const ydoc = new Y.Doc();
+      Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(authored));
+      return ydoc;
+    }
+
+    /** Every live `textStyle` marker, dead ones included, in stored order. */
+    function textStyleMarkers(ydoc: Y.Doc): unknown[] {
+      const paragraph = ydoc.getXmlFragment(FIELD).get(0) as Y.XmlElement;
+      const markers: unknown[] = [];
+      for (let item = (paragraph.get(0) as Y.XmlText)._start; item; ) {
+        if (
+          !item.deleted &&
+          item.content instanceof Y.ContentFormat &&
+          item.content.key === "textStyle"
+        ) {
+          markers.push(item.content.value);
+        }
+        item = item.right;
+      }
+      return markers;
+    }
+
+    function commentAcross(editor: Editor) {
+      select(editor, "ore] [one][two][three] [af")
+        .setMark("inlineThread", { "data-thread-id": "thread-1" })
+        .run();
+    }
+
+    describe.for([
+      ["at the end of the first range", "[one][two]", "[two][three]"],
+      ["at the start of the first range", "[two][three]", "[one][two]"],
+    ])("%s", ([, colorOn, fontSizeOn]) => {
+      test("is deleted by a stock editor's comment", () => {
+        const ydoc = styledByAnAuthor(colorOn, fontSizeOn);
+        const before = textStyleMarkers(ydoc);
+        commentAcross(attach(ydoc, [...textStyleKit, InlineThread]));
+
+        expect(textStyleMarkers(ydoc)).toHaveLength(before.length - 1);
+      });
+
+      test("is left as stored with CollabWriteback", () => {
+        const ydoc = styledByAnAuthor(colorOn, fontSizeOn);
+        const before = textStyleMarkers(ydoc);
+        commentAcross(
+          attach(ydoc, [...textStyleKit, InlineThread, CollabWriteback]),
+        );
+
+        expect(textStyleMarkers(ydoc)).toEqual(before);
+      });
+    });
+  });
+
   describe("an overlapping mark", () => {
     // Overlapping, so y-prosemirror keys it in Yjs by a hash of its JSON.
     const Tag = Mark.create({

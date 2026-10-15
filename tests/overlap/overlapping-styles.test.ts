@@ -6,6 +6,7 @@ import {
   TiptapCollabProviderWebsocket,
 } from "@tiptap-pro/provider";
 import Websocket from "ws";
+import { CollabWriteback } from "~/workaround/collabWriteback";
 import { describe, expect, test } from "../fixtures";
 import { createToken } from "../utils/createToken";
 import { paragraph, text } from "../utils/document";
@@ -32,8 +33,9 @@ import { waitForSync } from "../utils/waitForSync";
  * author's edits left behind. Styles that do not overlap leave none, and keep
  * the comment.
  *
- * There is no `with the writeback fix` half: the workaround compares mark
- * values, and every value here is unchanged. See
+ * The same matrix with the workaround added is tagged `writeback`: `pnpm test`
+ * leaves it out, `pnpm test:probes` runs only it. The author stays stock in
+ * both; only the comment-only session changes. See
  * docs/comment-anchor-overlapping-styles.md.
  */
 
@@ -78,60 +80,72 @@ async function styleAsAuthor(documentName: string, styling: Styling) {
   }
 }
 
-describe("setThread", () => {
-  describe("given a comment-only session", () => {
-    describe.for<[string, Styling[]]>([
-      ["overlap", OVERLAPPING],
-      ["do not overlap", NOT_OVERLAPPING],
-    ])("and styles that %s", ([, stylings]) => {
-      describe.for(stylings)("such as $label", (styling) => {
-        test.override(
-          "seed",
-          async ({ client, documentName }, { onCleanup }) => {
-            await client.createDocument(documentName, {
-              type: "doc",
-              content: [paragraph([text(TEXT)])],
-            });
-            onCleanup(() => client.deleteDocument(documentName));
-            await styleAsAuthor(documentName, styling);
-          },
-        );
+function describeOverlapMatrix() {
+  describe("setThread", () => {
+    describe("given a comment-only session", () => {
+      describe.for<[string, Styling[]]>([
+        ["overlap", OVERLAPPING],
+        ["do not overlap", NOT_OVERLAPPING],
+      ])("and styles that %s", ([, stylings]) => {
+        describe.for(stylings)("such as $label", (styling) => {
+          test.override(
+            "seed",
+            async ({ client, documentName }, { onCleanup }) => {
+              await client.createDocument(documentName, {
+                type: "doc",
+                content: [paragraph([text(TEXT)])],
+              });
+              onCleanup(() => client.deleteDocument(documentName));
+              await styleAsAuthor(documentName, styling);
+            },
+          );
 
-        describe.for(THREADS)("and $label", ({ part }) => {
-          test("keeps the thread anchor after sync", async ({
-            editor,
-            provider,
-            annotate,
-          }) => {
-            await annotate(
-              `markers before\n${formatMarkers(
-                paragraphText(provider.document.getXmlFragment("default")),
-              ).join("\n")}`,
-            );
-
-            const { threadId } = await createThreadAtSelection(
+          describe.for(THREADS)("and $label", ({ part }) => {
+            test("keeps the thread anchor after sync", async ({
               editor,
-              (current) =>
-                TextSelection.create(
-                  current.state.doc,
-                  ...rangeOf(current, part),
-                ),
-            );
+              provider,
+              annotate,
+            }) => {
+              await annotate(
+                `markers before\n${formatMarkers(
+                  paragraphText(provider.document.getXmlFragment("default")),
+                ).join("\n")}`,
+              );
 
-            expect(
-              threadExistsInDocument(editor, threadId),
-              `Thread ${threadId} was not anchored before sync`,
-            ).toBe(true);
+              const { threadId } = await createThreadAtSelection(
+                editor,
+                (current) =>
+                  TextSelection.create(
+                    current.state.doc,
+                    ...rangeOf(current, part),
+                  ),
+              );
 
-            await waitUntilFlushed(provider);
+              expect(
+                threadExistsInDocument(editor, threadId),
+                `Thread ${threadId} was not anchored before sync`,
+              ).toBe(true);
 
-            expect(
-              threadExistsInDocument(editor, threadId),
-              `Thread ${threadId} lost its anchor during sync`,
-            ).toBe(true);
+              await waitUntilFlushed(provider);
+
+              expect(
+                threadExistsInDocument(editor, threadId),
+                `Thread ${threadId} lost its anchor during sync`,
+              ).toBe(true);
+            });
           });
         });
       });
     });
   });
+}
+
+describeOverlapMatrix();
+
+describe("with the writeback fix", { tags: ["writeback"] }, () => {
+  test.override("extensions", ({ baseExtensions }) => [
+    CollabWriteback,
+    ...baseExtensions,
+  ]);
+  describeOverlapMatrix();
 });

@@ -1,6 +1,6 @@
 # `workaround/`
 
-The client-side stopgap we run in production while the two defects in this report are open. It is **evidence, not a remedy** ([ADR 0002](../docs/adr/0002-workaround-is-evidence-not-a-remedy.md)). It patches ProseMirror and Yjs internals from outside the libraries, which is acceptable for something we own, not as guidance for anyone else.
+The client-side stopgap we run in production while issues 1, 2 and 4 of this report are open. It is **evidence, not a remedy** ([ADR 0002](../docs/adr/0002-workaround-is-evidence-not-a-remedy.md)). It patches ProseMirror and Yjs internals from outside the libraries, which is acceptable for something we own, not as guidance for anyone else.
 
 ## Interface
 
@@ -34,7 +34,7 @@ Every mechanism applies one rule: a write that would **say the same** as what Yj
 
 | # | Mechanism | Defect | Needed by |
 |---|---|---|---|
-| 1 | A mark written to `Y.Text` that says the same as the stored one is left as stored. For an overlapping mark that means keeping the stored key, see below | [Inline anchor lost on `textStyle`](../docs/comment-anchor-lost.md) | the four single-style cases in the comment matrix; a block anchor on styled text; any mark stored sparser than this client's schema |
+| 1 | A mark written to `Y.Text` that says the same as the stored one is left out of the write, so Yjs leaves its markers as stored. For an overlapping mark that means keeping the stored key, see below | [Inline anchor lost on `textStyle`](../docs/comment-anchor-lost.md); [inline anchor undone where styles overlap](../docs/comment-anchor-overlapping-styles.md) | the four single-style cases in the comment matrix; a block anchor on styled text; any mark stored sparser than this client's schema; every overlapping-style case in issue 4 |
 | 2 | A rebuilt block takes the replaced element's key order and key set | [Block anchor undone](../docs/block-anchor-undone.md) | every block stored out of schema order or without a default |
 | 3 | A schema default is not written onto a stored element that lacks it | [Block anchor undone](../docs/block-anchor-undone.md) | an inline anchor on a block stored without a default; keeps 2's copies stable |
 | 4 | A rebuilt block keeps the empty text the replaced element held | [Block anchor undone](../docs/block-anchor-undone.md#an-emptied-block-keeps-an-empty-text) | a block anchor on a paragraph whose text was deleted |
@@ -64,15 +64,16 @@ The comment matrix then had 34 tests, two per case; it now has one per case, 17.
 - **The retain strip was redundant** next to the `create` patch, which made the written value equal the stored one.
 - **The `create` patch was replaced by mechanism 1.** It built every mark sparse inside ProseMirror. That needed the private `Mark` constructor and tagging values read from Yjs, and it changed `mark.attrs` for the whole app (`undefined` where Tiptap gives `null`). Mechanism 1 gets the same result where Yjs is written, and also covers the overlapping-mark cases the `create` patch could not. Sorting new marks' keys went with it.
 - **A `Mark.prototype.toJSON` patch was tried and rejected.** It could only strip `null`s before hashing, so it rewrote overlapping marks that a stock client had stored with them.
+- **Mechanism 1 now leaves a mark out instead of writing the stored value back.** Issue 4 needed it: writing any value, even the stored one, makes Yjs format the run for that mark, and on the way it deletes a dead marker that overlapping styles left. Writing the stored value kept issue 4 at 8 of 12; leaving the mark out takes it to 12/12, with issues 1 and 2 unchanged at 17/17 and 12/12. Also dropping `null` writes for marks the text does not have made no difference to any of the three, so it was left out.
 
 ## When to delete it
 
-The two defects have independent removal conditions:
+The inline and block defects have independent removal conditions:
 
-- **Mechanism 1** goes when the inline defect is fixed: y-prosemirror compares mark values by meaning, or the comment-only check stops discarding the whole update.
+- **Mechanism 1** goes when both inline defects are fixed. Issue 1: y-prosemirror compares mark values by meaning, or the comment-only check stops discarding the whole update. Issue 4: the comment-only check judges styles by value rather than by the markers an update touches, or Yjs stops leaving dead markers or deleting them on a later write.
 - **Mechanisms 2 to 4** go when the block defect is fixed: the comment-only check compares element attributes as a set, treats absent as default and an empty text as no text, or y-prosemirror stops rebuilding unchanged elements.
 
-It does not cover the other two ways a guest's block comment is undone: `trailingNode` adding a paragraph ([consumer-side](../docs/block-anchor-trailing-node.md)), and a fragment the server does not know ([server-side](../docs/block-anchor-fragments.md)). Neither is a write that says the same as what Yjs stores. Nor does it cover an inline comment on text whose style ranges overlap ([issue 4](../docs/comment-anchor-overlapping-styles.md)): every value there says the same, but Yjs deletes a dead `textStyle` marker while it writes them.
+It does not cover the other two ways a guest's block comment is undone: `trailingNode` adding a paragraph ([consumer-side](../docs/block-anchor-trailing-node.md)), and a fragment the server does not know ([server-side](../docs/block-anchor-fragments.md)). Neither is a write that says the same as what Yjs stores.
 
 The matching red tests in `pnpm test` turning green is the signal for each.
 
@@ -82,4 +83,4 @@ lex-frontend runs a copy of this directory. Copy the `.ts` files as they are, te
 
 - **Formatting:** lex-frontend's formatter will reformat the copy. Accept the format-only diff, and compare copies with a diff that ignores whitespace and semicolons.
 - **Tests:** `collabWriteback.test.ts` comes with the copy and tests through `CollabWriteback` on real editors. Replace lex-frontend's tests of internal helpers with it; they break on every internal change.
-- **Last synced:** not recorded here; the commit is in the header of lex-frontend's copy. Any copy taken before mechanism 4 rebuilds an emptied block without its empty text, so re-copy once it lands.
+- **Last synced:** not recorded here; the commit is in the header of lex-frontend's copy. Any copy taken before mechanism 4 rebuilds an emptied block without its empty text, and any copy taken before mechanism 1 left unchanged marks out loses a guest's comment on overlapping styles, so re-copy once both land.

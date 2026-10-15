@@ -25,7 +25,7 @@ These commands are expected to fail: every test asserts what should happen, so t
 
 > **4. [An inline comment is undone where an author's style ranges overlap.](docs/comment-anchor-overlapping-styles.md)**
 >
-> Two overlapping styles leave a dead `textStyle` marker in Yjs, one the next marker replaces at once. Adding a comment re-writes the paragraph's marks and Yjs deletes the dead marker. No style changes, but the server counts the deletion as a style edit and undoes the comment. Our workaround does not help, because every mark value is unchanged.
+> Two overlapping styles leave a dead `textStyle` marker in Yjs, one the next marker replaces at once. Adding a comment re-writes the paragraph's marks and Yjs deletes the dead marker. No style changes, but the server counts the deletion as a style edit and undoes the comment.
 
 ## Setup
 
@@ -91,7 +91,7 @@ pnpm test:block
 pnpm test:fragments
 pnpm test:overlap
 
-# Issues 1 and 2 with our stopgap applied (needs Docker collab server)
+# Issues 1, 2 and 4 with our stopgap applied (needs Docker collab server)
 pnpm test:probes
 
 # Helper unit tests — offline, no server, no licence key
@@ -131,8 +131,8 @@ Each file makes one claim, and each **asserts the behaviour we expect** — so t
 | `tests/block/block-anchor.test.ts` | **Issue 2.** A block comment on a block that differs from the rebuilt copy (out of schema order, missing a default, or emptied of its text) loses its anchor. Stock Tiptap, **7 of 12 red**. | yes |
 | `tests/fragments/block-anchor-fragments.test.ts` | **Issue 3.** A block comment loses its anchor outside the root `default` or a root declared with `setFieldType`, and in any fragment nested in a map. Inline comments are kept. **8 of 14 red**. No workaround run. | yes |
 | `tests/overlap/dead-marker.test.ts` | **Issue 4, the mechanism.** Overlapping styles leave a dead `textStyle` marker, and adding a comment deletes it. **4 of 6 red.** | no |
-| `tests/overlap/overlapping-styles.test.ts` | **Issue 4.** On a comment-only connection, that deletion costs the thread anchor. **8 of 12 red**. No workaround run. | yes |
-| `writeback`-tagged runs in the issue 1 and 2 matrix files | **The workaround.** Each matrix again under `with the writeback fix`, which only adds `CollabWriteback` to the extensions: **17/17** and **12/12**. Left out of `pnpm test`; `pnpm test:probes` runs them. | yes |
+| `tests/overlap/overlapping-styles.test.ts` | **Issue 4.** On a comment-only connection, that deletion costs the thread anchor. **8 of 12 red**. | yes |
+| `writeback`-tagged runs in the issue 1, 2 and 4 matrix files | **The workaround.** Each matrix again under `with the writeback fix`, which only adds `CollabWriteback` to the extensions: **17/17**, **12/12** and **12/12**. Left out of `pnpm test`; `pnpm test:probes` runs them. | yes |
 | `tests/utils/*.test.ts` | The selection helpers the matrix relies on place their ranges correctly. | no |
 | `workaround/*.test.ts` | Not part of the report: the stopgap's own contract — what it changes, and that it changes it only for the editor it is added to. Green. | no |
 
