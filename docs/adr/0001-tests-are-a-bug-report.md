@@ -8,26 +8,29 @@ report is three issues, one directory and one command each
 (`tests/{inline,block,fragments}`). Issue 3 is stock-only, since the workaround
 does not address it. `attribute-hashing.test.ts` was removed: it showed a
 shape-sensitivity that plays no part in the failing cases. Amended 2026-10-14:
-a fourth issue, `tests/overlap`, with a workaround half like issues 1 and 2._
+a fourth issue, `tests/overlap`, with a workaround half like issues 1 and 2.
+Amended 2026-11-09: the report moved to y-tiptap 3.0.10, which production
+runs, and gained a fifth issue, `tests/migrations`. Issues 1, 3 and 4 no longer
+reproduce against the server and moved to `tests/archive/`, a project of its
+own outside `pnpm test`. See the considered options._
 
-This repository exists to communicate four TipTap collab + CommentsKit issues
+This repository exists to communicate TipTap collab + CommentsKit issues
 to the TipTap team. `tests/` is the artifact we hand them, so it is optimised for a
 stranger reading it once — not for coverage, and not for CI. Each file makes one
 claim, and a failing test *is* the report rather than a problem to fix.
 
 ## What this means in practice
 
-- **`pnpm test` is expected to fail.** Tests in `tests/inline/`,
-  `tests/block/`, `tests/fragments/` and `tests/overlap/` are red because the issues are real. A green
+- **`pnpm test` is expected to fail.** Tests in `tests/block/` and
+  `tests/migrations/` are red because the issues are real. A green
   default run would mean we had stopped reproducing a defect. The failures are
   indexed in the README so a *new* failure is still distinguishable from a
   documented one.
-- **One claim per file.** `writeback-null-attrs.test.ts` shows the inline
-  mechanism offline, `comment.test.ts` shows the resulting anchor loss against
-  a real server, `block-anchor.test.ts` shows the block defect, and
-  `block-anchor-fragments.test.ts` the nested fragments. The inline, block and
-  overlap matrix files also run the same matrix with our interim workaround, under a
-  `with the writeback fix` describe tagged `writeback`.
+- **One claim per file.** `block-anchor.test.ts` shows the block defect,
+  `migration-record.test.ts` shows issue 5's write offline, and
+  `position-migrations.test.ts` the resulting anchor loss against a real
+  server. Both matrix files also run the same matrix with our interim
+  workaround, under a `with the writeback fix` describe tagged `writeback`.
 - **The workaround runs are held out of the default run.** `pnpm test` filters
   out the `writeback` tag; `pnpm test:probes` runs only it. Those runs are
   all-green, and mixing them into the default run would bury the red tests
@@ -41,6 +44,16 @@ claim, and a failing test *is* the report rather than a problem to fix.
   finding a licence key (`pnpm test:utils`, and the mechanism file directly).
 
 ## Considered options
+
+- **Keep issues 1–4 on y-tiptap 3.0.9 and give issue 5 its own install.**
+  Rejected (2026-11-09): production runs 3.0.10, and a report on an older
+  client than the one we ship invites "upgrade and retry". The cost is that on
+  3.0.10 issue 5 also undoes every stock block comment in issue 2's matrix,
+  so that file is all red; its write-up says which cases are issue 2's own.
+- **Delete fixed issues, as the investigative suites were.** Rejected for
+  issues 1, 3 and 4 (2026-11-09): they were fixed server-side, outside our
+  view, and could return with a server release. `tests/archive/` keeps them
+  runnable (`pnpm test:archive`) without putting them in the report.
 
 - **Keep the investigative suites.** Nine files and ~4,600 lines of extension
   permutations and probe marks were deleted. They recorded how we found the bug,
@@ -61,11 +74,12 @@ claim, and a failing test *is* the report rather than a problem to fix.
 ## Consequences
 
 - CI cannot gate on `pnpm test` while the defect is open.
-- New cases go into the matrix they belong to, `tests/utils/commentMatrix.ts`
-  or `tests/utils/blockMatrix.ts`. The stock and workaround runs call the same
-  matrix, and the workaround run is the stock `baseExtensions` plus
-  `CollabWriteback`, so they cannot drift apart.
-- Running a matrix file directly (`vitest run tests/inline/comment.test.ts`) runs both
+- New cases go into the matrix they belong to, `tests/utils/blockMatrix.ts`
+  or the one in `tests/migrations/position-migrations.test.ts`. The stock and
+  workaround runs call the same matrix, and the workaround run is the stock
+  `baseExtensions` plus `CollabWriteback.configure({ commentOnly: true })`, so
+  they cannot drift apart.
+- Running a matrix file directly (`vitest run tests/block/block-anchor.test.ts`) runs both
   halves; pass `--tags-filter='!writeback'` for the report alone.
 - The workaround's own contract is tested in `workaround/`, not here, because it
   is not part of the report. It pins, offline, chiefly that the workaround

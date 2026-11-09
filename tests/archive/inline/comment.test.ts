@@ -1,6 +1,6 @@
 import { CollabWriteback } from "~/workaround/collabWriteback";
-import { describe, test } from "../fixtures";
-import { describeCommentMatrix } from "../utils/commentMatrix";
+import { describe, test } from "../../fixtures";
+import { describeCommentMatrix } from "../../utils/commentMatrix";
 
 /**
  * The comment-only matrix on a plain Tiptap configuration — the full textStyle
@@ -14,7 +14,7 @@ describeCommentMatrix();
 
 describe("with the writeback fix", { tags: ["writeback"] }, () => {
   test.override("extensions", ({ baseExtensions }) => [
-    CollabWriteback,
+    CollabWriteback.configure({ commentOnly: true }),
     ...baseExtensions,
   ]);
   describeCommentMatrix();

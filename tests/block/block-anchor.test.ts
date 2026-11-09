@@ -17,7 +17,7 @@ describeBlockMatrix();
 
 describe("with the writeback fix", { tags: ["writeback"] }, () => {
   test.override("extensions", ({ baseExtensions }) => [
-    CollabWriteback,
+    CollabWriteback.configure({ commentOnly: true }),
     ...baseExtensions,
   ]);
   describeBlockMatrix();

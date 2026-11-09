@@ -1,0 +1,74 @@
+Draft for submission to TipTap support, as a new request.
+
+The form fields do not render markdown, so no headings, bold, backticks, tables or links. Paragraphs are single lines. Indented blocks are the only place line breaks matter. Copy each section between the [ FIELD ] markers, and keep this in sync with docs/position-migrations.md.
+
+
+[ FIELD 1 - Provide a short title for your request ]
+
+Since y-tiptap 3.0.10, comment-only users lose every block comment, and inline comments near emptied paragraphs: the server rejects the position-migration record written with them
+
+
+[ FIELD 2 - Describe the problem you're experiencing in detail ]
+
+This blocks block comments for every comment-only user in our product since we upgraded @tiptap/y-tiptap from 3.0.9 to 3.0.10.
+
+On a comment-only connection (JWT with the document in readonlyDocumentNames and commentDocumentNames), a comment appears locally, then the server undoes the whole update and the thread is left with nothing to point at. The server logs:
+
+    Undoing change to document <doc> from guest:<sub> because non-allowed type was touched. Touched types: __tiptap_position_migrations:root:default.
+    Undoing change to document <doc> from guest:<sub> because non-allowed type was touched. Touched types: default, __tiptap_position_migrations:root:default.
+
+ProsemirrorBinding._prosemirrorChanged now calls applyPositionMigration in the same transaction as the content, and writePositionMigration sets a record in the root map __tiptap_position_migrations:root:<field> (or :item:<client>:<clock> for a fragment nested in a map). The comment-only check does not allow that root, so the comment goes with it.
+
+mapPositionMigration builds a plan for every local transaction that is not all plain text replacements, so every comment gets one. Whether it produces a record depends on the document:
+
+    block comment (setThread on a NodeSelection)      always: the wrap gives the block new identities
+    inline comment                                    only while a block emptied of its text exists
+
+The inline case comes from getPositionNodeTransfers. When an author deletes all of a paragraph's text, or splits a paragraph at its start, the paragraph keeps an empty Y.XmlText. getPositionContent lists it in emptyTexts, and getPositionNodeTransfers compares its id with the element at the same position, which is the paragraph. They never match, so every plan transfers it and writes a record. This happens for every client, not only comment-only ones, on every mark or other non-text edit for as long as the emptied paragraph exists, and each record copies the client's state vector.
+
+An author first edits on a full-rights connection; a comment-only user then comments on a paragraph the edit did not touch:
+
+    author first                        inline comment   block comment
+    does nothing                        kept             undone
+    splits a paragraph mid-text         kept             undone
+    merges two paragraphs               kept             undone
+    splits a paragraph at its start     undone           undone
+    deletes a paragraph's text          undone           undone
+
+All ten are kept on 3.0.9, against the same server.
+
+ENVIRONMENT
+
+    @tiptap-pro/extension-comments    3.9.5   (useLegacyWrapping: false)
+    @tiptap-pro/provider              3.9.5
+    @tiptap/core                      3.30.3
+    @tiptap/extension-collaboration   3.30.3
+    @tiptap/y-tiptap                  3.0.10
+    yjs                               13.6.32
+
+    Collab server image
+      container.tiptap.dev/collaboration/server:latest (COLLABORATION_VERSION 3.108.2)
+
+
+[ FIELD 3 - Describe what you expected to happen ]
+
+A comment by a comment-only user should be kept whether or not y-tiptap records position migrations, as it was on 3.0.9.
+
+We need one of these from you:
+
+1. The comment-only check allows the __tiptap_position_migrations roots, since a record changes nothing that is read as content.
+
+2. y-tiptap writes no position-migration record on a connection that cannot edit, or writes one only when an edit actually moved an identity. The emptied-paragraph transfer above looks like a bug on its own: it is written by every client on unrelated edits.
+
+Our client-side stopgap passes no plan to _prosemirrorChanged while the session is comment-only. All ten cases then keep their comment. We would rather not depend on an internal method.
+
+
+[ FIELD 4 - Code Example Link ]
+
+https://github.com/learnexperts/tiptap-comments-test
+
+Needs Docker and an on-premises licence key; setup is in the README.
+
+    pnpm test:migrations
+
+20 cases. tests/migrations/migration-record.test.ts needs no server: an author edits, a second client comments, and each case asserts the commenter wrote only to "default" (7 of 10 red). tests/migrations/position-migrations.test.ts runs the same cases against the server (7 of 10 red). Write-up: docs/position-migrations.md.

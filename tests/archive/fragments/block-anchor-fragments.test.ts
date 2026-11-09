@@ -7,25 +7,25 @@ import {
 } from "@tiptap-pro/provider";
 import Websocket from "ws";
 import * as Y from "yjs";
-import { describe, expect, test } from "../fixtures";
-import { createToken } from "../utils/createToken";
-import { paragraph, text } from "../utils/document";
+import { describe, expect, test } from "../../fixtures";
+import { createToken } from "../../utils/createToken";
+import { paragraph, text } from "../../utils/document";
 import {
   type Binding,
   rootDefault,
   stockExtensionsFor,
   textSchema,
-} from "../utils/extensionSets";
-import { waitUntilFlushed } from "../utils/flushChanges";
-import { queryOrFail } from "../utils/query";
+} from "../../utils/extensionSets";
+import { waitUntilFlushed } from "../../utils/flushChanges";
+import { queryOrFail } from "../../utils/query";
 import {
   asNodeSelection,
   nodeRange,
   type Selection,
   TextSelection,
-} from "../utils/selection";
-import { createThreadAtSelection } from "../utils/thread";
-import { waitForSync } from "../utils/waitForSync";
+} from "../../utils/selection";
+import { createThreadAtSelection } from "../../utils/thread";
+import { waitForSync } from "../../utils/waitForSync";
 
 /**
  * The server keeps a comment-only block wrap only in a fragment it knows: the
@@ -34,7 +34,7 @@ import { waitForSync } from "../utils/waitForSync";
  * however it is declared. Inline anchors are kept in every layout.
  *
  * There is no `with the writeback fix` half: the workaround writes nothing
- * different here. See docs/block-anchor-fragments.md.
+ * different here. See docs/archive/block-anchor-fragments.md.
  */
 
 type FieldType = Parameters<TiptapCollabProvider["setFieldType"]>[1];

@@ -10,7 +10,7 @@ import { prosemirrorJSONToYDoc } from "@tiptap/y-tiptap";
 import { InlineThread } from "@tiptap-pro/extension-comments";
 import { afterEach, describe, expect, test } from "vitest";
 import type * as Y from "yjs";
-import { yTextSegments } from "../utils/yMarkSnapshots";
+import { yTextSegments } from "../../utils/yMarkSnapshots";
 
 /**
  * The mechanism behind the lost comment anchor, with no collab server involved.
@@ -23,10 +23,10 @@ import { yTextSegments } from "../utils/yMarkSnapshots";
  *
  * On a comment-only connection the server rejects that write, and the thread
  * anchor is dropped with it. That final step needs the integration test in
- * `tests/inline/comment.test.ts`; the write itself is shown here, offline.
+ * `tests/archive/inline/comment.test.ts`; the write itself is shown here, offline.
  *
  * The second test asserts the behaviour we expect and currently fails. See
- * docs/comment-anchor-lost.md for why the write happens.
+ * docs/archive/comment-anchor-lost.md for why the write happens.
  */
 
 const FIELD = "default";

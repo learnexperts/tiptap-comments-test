@@ -2,7 +2,7 @@ import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 /**
- * Three projects, plus a `writeback` tag, each chosen by its own command — see
+ * Four projects, plus a `writeback` tag, each chosen by its own command — see
  * `docs/adr/0001-tests-are-a-bug-report.md`.
  *
  * `pnpm test` runs `repro` without the `writeback` tag, so the default run is
@@ -46,12 +46,21 @@ export default defineConfig({
         },
       },
       {
-        // The report itself, one directory per issue. The matrices' `writeback`
-        // halves live here too; the scripts choose them by tag.
+        // The report itself, one directory per open issue. The matrices'
+        // `writeback` halves live here too; the scripts choose them by tag.
         extends: true,
         test: {
           name: "repro",
-          include: ["tests/{inline,block,fragments,overlap}/*.test.ts"],
+          include: ["tests/{block,migrations}/*.test.ts"],
+        },
+      },
+      {
+        // Issues that no longer reproduce, kept runnable in case they return.
+        // Not part of the report.
+        extends: true,
+        test: {
+          name: "archive",
+          include: ["tests/archive/**/*.test.ts"],
         },
       },
     ],

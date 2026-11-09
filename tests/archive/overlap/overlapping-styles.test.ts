@@ -7,11 +7,11 @@ import {
 } from "@tiptap-pro/provider";
 import Websocket from "ws";
 import { CollabWriteback } from "~/workaround/collabWriteback";
-import { describe, expect, test } from "../fixtures";
-import { createToken } from "../utils/createToken";
-import { paragraph, text } from "../utils/document";
-import { stockExtensions } from "../utils/extensionSets";
-import { waitUntilFlushed } from "../utils/flushChanges";
+import { describe, expect, test } from "../../fixtures";
+import { createToken } from "../../utils/createToken";
+import { paragraph, text } from "../../utils/document";
+import { stockExtensions } from "../../utils/extensionSets";
+import { waitUntilFlushed } from "../../utils/flushChanges";
 import {
   applyStyling,
   formatMarkers,
@@ -21,10 +21,10 @@ import {
   rangeOf,
   type Styling,
   TEXT,
-} from "../utils/overlappingStyles";
-import { TextSelection } from "../utils/selection";
-import { createThreadAtSelection } from "../utils/thread";
-import { waitForSync } from "../utils/waitForSync";
+} from "../../utils/overlappingStyles";
+import { TextSelection } from "../../utils/selection";
+import { createThreadAtSelection } from "../../utils/thread";
+import { waitForSync } from "../../utils/waitForSync";
 
 /**
  * Issue 4. An author styles the text through an editor, with two styles whose
@@ -36,7 +36,7 @@ import { waitForSync } from "../utils/waitForSync";
  * The same matrix with the workaround added is tagged `writeback`: `pnpm test`
  * leaves it out, `pnpm test:probes` runs only it. The author stays stock in
  * both; only the comment-only session changes. See
- * docs/comment-anchor-overlapping-styles.md.
+ * docs/archive/comment-anchor-overlapping-styles.md.
  */
 
 interface Thread {
@@ -144,7 +144,7 @@ describeOverlapMatrix();
 
 describe("with the writeback fix", { tags: ["writeback"] }, () => {
   test.override("extensions", ({ baseExtensions }) => [
-    CollabWriteback,
+    CollabWriteback.configure({ commentOnly: true }),
     ...baseExtensions,
   ]);
   describeOverlapMatrix();

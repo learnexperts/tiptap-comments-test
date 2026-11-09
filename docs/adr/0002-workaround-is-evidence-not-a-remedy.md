@@ -3,7 +3,10 @@
 _Amended 2026-10-06: the workaround now covers two defects with three
 mechanisms in three files, and its halves have separate removal conditions. The
 decision is unchanged. Amended 2026-10-07: a fourth mechanism, keeping an
-emptied block's text, joins the element half._
+emptied block's text, joins the element half. Amended 2026-11-09: a fifth
+mechanism, writing no position-migration record, is the first that changes a
+write an editor needs, so it is off unless `CollabWriteback` is configured
+`commentOnly`._
 
 `workaround/` is the one directory here that is not test support: it is the
 stopgap we run in production while the defects are open. It lives in its own
@@ -35,8 +38,9 @@ the point.
 
 - `tests/` may import `CollabWriteback` from `workaround/`; never the reverse.
   Biome enforces both directions.
-- The two halves go away separately: the `textStyle` mechanism when the inline
-  defect is fixed, the element mechanisms when the block defect is fixed. When
+- The halves go away separately: the `textStyle` mechanism when the inline
+  defect is fixed, the element mechanisms when the block defect is fixed, and
+  the position-migration mechanism when issue 5 is. When
   both are gone, so are this directory (its tests included) and the
   `writeback` halves of the matrix files. Nothing else in the repo depends on the workaround.
 - Every mechanism has earned its place by ablation; `workaround/README.md`

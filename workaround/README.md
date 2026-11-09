@@ -1,6 +1,6 @@
 # `workaround/`
 
-The client-side stopgap we run in production while issues 1, 2 and 4 of this report are open. It is **evidence, not a remedy** ([ADR 0002](../docs/adr/0002-workaround-is-evidence-not-a-remedy.md)). It patches ProseMirror and Yjs internals from outside the libraries, which is acceptable for something we own, not as guidance for anyone else.
+The client-side stopgap we run in production while issues 2 and 5 of this report are open, and that covered issues 1 and 4 before they were [archived](../docs/archive/README.md). It is **evidence, not a remedy** ([ADR 0002](../docs/adr/0002-workaround-is-evidence-not-a-remedy.md)). It patches ProseMirror and Yjs internals from outside the libraries, which is acceptable for something we own, not as guidance for anyone else.
 
 ## Interface
 
@@ -8,11 +8,17 @@ One extension: `CollabWriteback`, from `workaround/collabWriteback.ts`.
 
 ```ts
 new Editor({
-  extensions: [/* schema */, CollabWriteback, Collaboration.configure({ ... }), CommentsKit.configure({ ... })],
+  extensions: [
+    /* schema */,
+    CollabWriteback.configure({ commentOnly: () => !canEdit() }),
+    Collaboration.configure({ ... }),
+    CommentsKit.configure({ ... }),
+  ],
 });
 ```
 
 - It needs `Collaboration` on the same editor, and **throws** without it.
+- `commentOnly` (default `false`): whether the session may only comment, as a boolean or a function read at every write. Only mechanism 5 reads it; mechanisms 1 to 4 run for every session.
 - It affects only that editor's Collaboration fragment, and only while y-prosemirror writes ProseMirror → Yjs. Other editors in the process are left stock, whether they share the document or not. One document may hold several editors' fragments, each with its own schema.
 - Destroying the editor takes its fragment back out of scope.
 
@@ -23,6 +29,7 @@ Nothing else is exported for `tests/`. Biome enforces both directions: `tests/` 
 | `collabWriteback.ts` | The extension |
 | `markWriteback.ts` | Mechanism 1 |
 | `elementWriteback.ts` | Mechanisms 2, 3 and 4 |
+| `positionMigrations.ts` | Mechanism 5 |
 | `writebackScope.ts` | Which writes are in scope (y-sync transactions on registered fragments), each fragment's node and mark defaults, and `saysTheSameAs`, the rule every mechanism applies |
 | `patchMethod.ts` | Replaces a prototype method once, however many editors install it |
 
@@ -30,14 +37,15 @@ Its contract is tested offline beside it, in [`collabWriteback.test.ts`](collabW
 
 ## Mechanisms
 
-Every mechanism applies one rule: a write that would **say the same** as what Yjs stores is written as it is stored, or not at all. That means every stored attribute unchanged, and anything extra at its schema default, `null` included. None of them changes a ProseMirror node or mark. The app sees exactly what stock Tiptap gives it; only what is written to Yjs changes.
+Mechanisms 1 to 4 apply one rule: a write that would **say the same** as what Yjs stores is written as it is stored, or not at all. That means every stored attribute unchanged, and anything extra at its schema default, `null` included. Mechanism 5 is different: it drops a write, y-tiptap's position-migration record, that an editor needs and a comment-only session does not, so it runs only while `commentOnly` holds. None of them changes a ProseMirror node or mark. The app sees exactly what stock Tiptap gives it; only what is written to Yjs changes.
 
 | # | Mechanism | Defect | Needed by |
 |---|---|---|---|
-| 1 | A mark written to `Y.Text` that says the same as the stored one is left out of the write, so Yjs leaves its markers as stored. For an overlapping mark that means keeping the stored key, see below | [Inline anchor lost on `textStyle`](../docs/comment-anchor-lost.md); [inline anchor undone where styles overlap](../docs/comment-anchor-overlapping-styles.md) | the four single-style cases in the comment matrix; a block anchor on styled text; any mark stored sparser than this client's schema; every overlapping-style case in issue 4 |
+| 1 | A mark written to `Y.Text` that says the same as the stored one is left out of the write, so Yjs leaves its markers as stored. For an overlapping mark that means keeping the stored key, see below | [Inline anchor lost on `textStyle`](../docs/archive/comment-anchor-lost.md); [inline anchor undone where styles overlap](../docs/archive/comment-anchor-overlapping-styles.md) | the four single-style cases in the comment matrix; a block anchor on styled text; any mark stored sparser than this client's schema; every overlapping-style case in issue 4 |
 | 2 | A rebuilt block takes the replaced element's key order and key set | [Block anchor undone](../docs/block-anchor-undone.md) | every block stored out of schema order or without a default |
 | 3 | A schema default is not written onto a stored element that lacks it | [Block anchor undone](../docs/block-anchor-undone.md) | an inline anchor on a block stored without a default; keeps 2's copies stable |
 | 4 | A rebuilt block keeps the empty text the replaced element held | [Block anchor undone](../docs/block-anchor-undone.md#an-emptied-block-keeps-an-empty-text) | a block anchor on a paragraph whose text was deleted |
+| 5 | While `commentOnly` holds, the editor writes its changes without y-tiptap's position-migration record. It patches this editor's binding (`_prosemirrorChanged(doc, plan)`, an internal) when the view is built | [Position-migration record](../docs/position-migrations.md) | every block comment on y-tiptap 3.0.10, and an inline comment on a page with an emptied block: without it, issue 2's matrix is 1/12 and issue 5's 3/10 |
 
 ### Overlapping marks
 
@@ -70,10 +78,11 @@ The comment matrix then had 34 tests, two per case; it now has one per case, 17.
 
 The inline and block defects have independent removal conditions:
 
-- **Mechanism 1** goes when both inline defects are fixed. Issue 1: y-prosemirror compares mark values by meaning, or the comment-only check stops discarding the whole update. Issue 4: the comment-only check judges styles by value rather than by the markers an update touches, or Yjs stops leaving dead markers or deleting them on a later write.
+- **Mechanism 1** goes when both inline defects are fixed. Both no longer reproduce against server 3.108.2 and are archived, so its removal is due once an ablation shows nothing still open needs it (the mechanism table lists a block anchor on styled text). Issue 1: y-prosemirror compares mark values by meaning, or the comment-only check stops discarding the whole update. Issue 4: the comment-only check judges styles by value rather than by the markers an update touches, or Yjs stops leaving dead markers or deleting them on a later write.
+- **Mechanism 5** goes when issue 5 is fixed: the comment-only check allows the `__tiptap_position_migrations:*` roots, or y-tiptap stops writing a record for a session that cannot edit.
 - **Mechanisms 2 to 4** go when the block defect is fixed: the comment-only check compares element attributes as a set, treats absent as default and an empty text as no text, or y-prosemirror stops rebuilding unchanged elements.
 
-It does not cover the other two ways a guest's block comment is undone: `trailingNode` adding a paragraph ([consumer-side](../docs/block-anchor-trailing-node.md)), and a fragment the server does not know ([server-side](../docs/block-anchor-fragments.md)). Neither is a write that says the same as what Yjs stores.
+It does not cover the other two ways a guest's block comment is undone: `trailingNode` adding a paragraph ([consumer-side](../docs/block-anchor-trailing-node.md)), and a fragment the server does not know ([server-side](../docs/archive/block-anchor-fragments.md), now archived). Neither is a write that says the same as what Yjs stores. Nor does it cover a comment-only user's undo, which writes a position-migration record through y-tiptap's undo path; that is untested.
 
 The matching red tests in `pnpm test` turning green is the signal for each.
 
@@ -83,4 +92,5 @@ lex-frontend runs a copy of this directory. Copy the `.ts` files as they are, te
 
 - **Formatting:** lex-frontend's formatter will reformat the copy. Accept the format-only diff, and compare copies with a diff that ignores whitespace and semicolons.
 - **Tests:** `collabWriteback.test.ts` comes with the copy and tests through `CollabWriteback` on real editors. Replace lex-frontend's tests of internal helpers with it; they break on every internal change.
+- **`commentOnly`:** lex-frontend adds `CollabWriteback` to every editor, editors included, so pass `commentOnly` as a function of the session's live permissions (the same one `ReadOnlyWriteGuard` reads), never `true`. A copy on y-tiptap 3.0.10 without mechanism 5 loses every guest block comment.
 - **Last synced:** not recorded here; the commit is in the header of lex-frontend's copy. Any copy taken before mechanism 4 rebuilds an emptied block without its empty text, and any copy taken before mechanism 1 left unchanged marks out loses a guest's comment on overlapping styles, so re-copy once both land.

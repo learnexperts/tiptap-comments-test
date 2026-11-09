@@ -1,12 +1,14 @@
 # Issue 4: Comment-only inline thread undone where style ranges overlap
 
-[← back to the README](../README.md)
+[← back to the README](../../README.md)
+
+> **Archived 2026-11-09: no longer reproduces.** Against collab server 3.108.2 every overlapping-style case keeps its comment, stock (12/12). Offline, a y-tiptap 3.0.9 author's overlap still leaves the dead marker and a comment still deletes it (4 of 6 red). On 3.0.10 an author leaves no dead marker, but a comment's position-migration plan ([issue 5](../position-migrations.md)) re-writes the formatting of every text, so the offline file is all red; the server accepts both. Kept for the record and in case it returns; see [the archive](README.md).
 
 An inline comment by a comment-only user is undone on text where an author applied two styles whose ranges overlap, for example a color and then a font size over part of the colored text. The comment appears locally, then the server undoes the whole update on sync. Every mark value the comment writes is unchanged. What the update changes is how Yjs stores the style.
 
 ```sh
-pnpm test:overlap                                        # needs Docker
-pnpm exec vitest run tests/overlap/dead-marker.test.ts   # offline, under a second
+pnpm test:archive tests/archive/overlap                           # needs Docker
+pnpm exec vitest run tests/archive/overlap/dead-marker.test.ts    # offline, under a second
 ```
 
 The server logs:
@@ -47,11 +49,11 @@ A dead marker appears only where one part ends and the next starts with a differ
 
 Adding a comment makes y-prosemirror re-write every mark on the paragraph, as in [issue 1](comment-anchor-lost.md). When Yjs reaches the dead marker, the marker disagrees with the value being written, so Yjs deletes it, and writes the marker after it again. The text keeps every style it had. But the update deletes and adds `textStyle` markers, the comment-only check counts that as a style edit, and it undoes the update with the comment's anchor.
 
-[`tests/overlap/dead-marker.test.ts`](../tests/overlap/dead-marker.test.ts) shows this offline. Each case annotates the markers before and after the comment.
+[`tests/archive/overlap/dead-marker.test.ts`](../../tests/archive/overlap/dead-marker.test.ts) shows this offline. Each case annotates the markers before and after the comment.
 
 ## Measured
 
-[`tests/overlap/overlapping-styles.test.ts`](../tests/overlap/overlapping-styles.test.ts) seeds a plain paragraph through the REST API, styles it as a full-rights user through an editor, then comments on it as a comment-only user.
+[`tests/archive/overlap/overlapping-styles.test.ts`](../../tests/archive/overlap/overlapping-styles.test.ts) seeds a plain paragraph through the REST API, styles it as a full-rights user through an editor, then comments on it as a comment-only user.
 
 | Author's styles | Across every style | Inside one style |
 |---|---|---|
@@ -68,7 +70,7 @@ We first saw this in lex-frontend, where a capture of the guest's write showed t
 
 ## Our interim workaround (not a recommendation)
 
-`workaround/` leaves out of the write every mark that says the same as the stored one ([its README](../workaround/README.md)). Yjs formats a run only for the marks a write names, so with `textStyle` left out it never reaches the dead marker, and the update writes only the `inlineThread` mark. With `CollabWriteback` on the comment-only session, all 12 cases are kept; the author stays stock. The same file runs that half under the `writeback` tag (`pnpm test:probes tests/overlap`).
+`workaround/` leaves out of the write every mark that says the same as the stored one ([its README](../../workaround/README.md)). Yjs formats a run only for the marks a write names, so with `textStyle` left out it never reaches the dead marker, and the update writes only the `inlineThread` mark. With `CollabWriteback` on the comment-only session, all 12 cases are kept; the author stays stock. The same file runs that half under the `writeback` tag (`pnpm test:archive tests/archive/overlap`).
 
 An earlier version wrote the stored value back instead of leaving the mark out. Every value already said the same, so that changed nothing here and the result stayed 8 of 12: writing a value, even the stored one, makes Yjs format the run for it. Yjs's own `cleanupYTextFormatting` does not remove the dead marker, so it cannot be cleared on the author's side either.
 

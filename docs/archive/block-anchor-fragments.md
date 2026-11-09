@@ -1,9 +1,11 @@
 # Issue 3: Comment-only block threads undone in a nested fragment
 
-[← back to the README](../README.md)
+[← back to the README](../../README.md)
+
+> **Archived 2026-11-09: addressed for nested fragments.** Against collab server 3.108.2 a comment-only block wrap is kept in a fragment nested in a root map, declared or not, so lex-frontend's pages keep their block comments. Only an undeclared root fragment other than `default` still undoes it. On y-tiptap 3.0.10 every block case is also undone by [issue 5](../position-migrations.md) (4/14 green); with issue 5's record dropped, 13/14. Kept for the record and in case it returns; see [the archive](README.md).
 
 ```sh
-pnpm test:fragments    # needs Docker
+pnpm test:archive tests/archive/fragments    # needs Docker
 ```
 
 The server keeps a comment-only **block** wrap only in a fragment it knows the type of: the root `XmlFragment` `default`, or another root `XmlFragment` declared `xmlfragment` in the document's typemap. Anywhere else the wrap is undone, even when the copy is identical. A fragment nested in a root `Y.Map` is undone however it is declared. **Inline** comments are kept in every layout.
@@ -42,7 +44,7 @@ The server bundle (`/usr/src/app/dist/index.jsc`, V8 bytecode) contains the stri
 
 ## What we tested
 
-[`tests/fragments/block-anchor-fragments.test.ts`](../tests/fragments/block-anchor-fragments.test.ts), against a real server on stock Tiptap. A full-rights session writes the same two paragraphs into the fragment, declaring its types first; a comment-only session then comments on the first.
+[`tests/archive/fragments/block-anchor-fragments.test.ts`](../../tests/archive/fragments/block-anchor-fragments.test.ts), against a real server on stock Tiptap. A full-rights session writes the same two paragraphs into the fragment, declaring its types first; a comment-only session then comments on the first.
 
 | Fragment | Block anchor | Inline anchor |
 |---|---|---|

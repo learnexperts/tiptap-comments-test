@@ -3,7 +3,7 @@ import * as Y from "yjs";
 
 /**
  * Issue 4's paragraph and the ways an author styles it. Shared by the offline
- * mechanism file and the server file in `tests/overlap/`, so both describe
+ * mechanism file and the server file in `tests/archive/overlap/`, so both describe
  * the same documents.
  */
 

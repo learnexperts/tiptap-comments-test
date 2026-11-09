@@ -3,8 +3,8 @@ import Collaboration from "@tiptap/extension-collaboration";
 import { InlineThread } from "@tiptap-pro/extension-comments";
 import { afterEach, describe, expect, test } from "vitest";
 import * as Y from "yjs";
-import { paragraph, text } from "../utils/document";
-import { textSchema } from "../utils/extensionSets";
+import { paragraph, text } from "../../utils/document";
+import { textSchema } from "../../utils/extensionSets";
 import {
   applyStyling,
   formatMarkers,
@@ -15,7 +15,7 @@ import {
   rangeOf,
   type Styling,
   TEXT,
-} from "../utils/overlappingStyles";
+} from "../../utils/overlappingStyles";
 
 /**
  * The mechanism behind issue 4, with no collab server involved.
@@ -28,7 +28,7 @@ import {
  * `textStyle` markers, which a comment-only connection may not do.
  *
  * The overlapping cases assert the behaviour we expect and currently fail.
- * See docs/comment-anchor-overlapping-styles.md.
+ * See docs/archive/comment-anchor-overlapping-styles.md.
  */
 
 const FIELD = "default";

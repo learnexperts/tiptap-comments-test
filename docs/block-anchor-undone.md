@@ -2,11 +2,13 @@
 
 [← back to the README](../README.md)
 
-An addendum to [issue 1](comment-anchor-lost.md): the same comment-only check, judging a write by its shape, now for block comments.
+An addendum to [issue 1](archive/comment-anchor-lost.md): the same comment-only check, judging a write by its shape, now for block comments.
 
 ```sh
 pnpm test:block    # needs Docker
 ```
+
+> **Narrowed, 2026-11-09.** Against collab server 3.108.2, only the missing-default rows below still reproduce: [a block stored without its default](#missing-defaults-affect-inline-anchors-too), for both block and inline comments. Key order and an emptied text are now accepted. On y-tiptap 3.0.10, every stock block comment in this matrix is also undone by [issue 5](position-migrations.md), so `pnpm test:block` is all red; the `writeback` half drops issue 5's record, and is green.
 
 Creating a **block** comment thread on a comment-only connection loses its anchor after sync whenever the block's stored attributes differ from what the client rebuilds. Nothing errors. The `blockThread` wrapper appears locally, then the server undoes the whole update, and the thread is left with nothing in the document to point at. The server logs:
 
@@ -29,13 +31,13 @@ for (const key in node.attrs) {
 
 The server accepts that delete and insert from a comment-only connection **only when the copy is identical to the deleted element, including the order of its attribute keys.** Any of the following makes the copy differ, and the update is undone:
 
-| Stored element | Rebuilt copy | Result |
-|---|---|---|
-| `{textAlign, marginLeft}` (schema order) | `{textAlign, marginLeft}` | kept |
-| `{marginLeft, textAlign}` | `{textAlign, marginLeft}` | **undone** |
-| `codeBlock {theme, language}` | `{language, theme}` | **undone** |
-| `paragraph {}` (default not stored) | `{marginLeft: 0}` | **undone** |
-| `paragraph` holding an empty text | `paragraph` with no children | **undone** |
+| Stored element | Rebuilt copy | Result | On server 3.108.2 |
+|---|---|---|---|
+| `{textAlign, marginLeft}` (schema order) | `{textAlign, marginLeft}` | kept | kept |
+| `{marginLeft, textAlign}` | `{textAlign, marginLeft}` | **undone** | kept |
+| `codeBlock {theme, language}` | `{language, theme}` | **undone** | kept |
+| `paragraph {}` (default not stored) | `{marginLeft: 0}` | **undone** | **undone** |
+| `paragraph` holding an empty text | `paragraph` with no children | **undone** | kept |
 
 The same values in a different key order count as an edit. An editor connection keeps every one of these.
 
@@ -81,7 +83,7 @@ These variations make no difference:
 
 What matters is only whether the rebuilt copy matches the stored element.
 
-A block comment is also undone in [a fragment the server does not know](block-anchor-fragments.md), which is issue 3 and has a different cause.
+A block comment is also undone in [a fragment the server does not know](archive/block-anchor-fragments.md), which is issue 3 and has a different cause.
 
 ## Where we think the fix belongs
 

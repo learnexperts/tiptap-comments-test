@@ -1,12 +1,14 @@
 # Issue 1: Comment-only inline thread lost on `textStyle`
 
-[← back to the README](../README.md)
+[← back to the README](../../README.md)
+
+> **Archived 2026-11-09: no longer reproduces.** Against collab server 3.108.2 the comment matrix keeps every anchor: 17/17 on y-tiptap 3.0.9, and 16/17 on 3.0.10, where the one red case is a block comment lost to [issue 5](../position-migrations.md). The client still writes the `null` attributes (the offline file is still 1 of 2 red), but the server now accepts them. Kept for the record and in case it returns; see [the archive](README.md).
 
 Creating an inline comment on text that carries a `textStyle` mark loses the **document anchor** after sync. The thread exists locally before sync; after comment-only sync `inlineThread` is gone. Unstyled and bold text keep the anchor.
 
 ```sh
-pnpm test:inline                                                # needs Docker
-pnpm exec vitest run tests/inline/writeback-null-attrs.test.ts  # offline, under a second
+pnpm test:archive tests/archive/inline                                   # needs Docker
+pnpm exec vitest run tests/archive/inline/writeback-null-attrs.test.ts   # offline, under a second
 ```
 
 ## Cause: adding a comment rewrites `textStyle`
@@ -25,7 +27,7 @@ ytext.applyDelta(
 
 On a comment-only connection the server rejects that `textStyle` write, and drops the `inlineThread` mark in the same update.
 
-[`tests/inline/writeback-null-attrs.test.ts`](../tests/inline/writeback-null-attrs.test.ts) shows the write offline: the server's sparse value, then the dense one after a comment. [`tests/inline/comment.test.ts`](../tests/inline/comment.test.ts) shows the lost anchor against a real server.
+[`tests/archive/inline/writeback-null-attrs.test.ts`](../../tests/archive/inline/writeback-null-attrs.test.ts) shows the write offline: the server's sparse value, then the dense one after a comment. [`tests/archive/inline/comment.test.ts`](../../tests/archive/inline/comment.test.ts) shows the lost anchor against a real server.
 
 ### Correction to our first report
 
@@ -33,7 +35,7 @@ Our first report named the hashed keys of overlapping marks (`marksToAttributes`
 
 ## Measured
 
-`tests/inline/comment.test.ts` crosses five seeds with selection scenarios: exact, partly overlapping, two threads on separate parts, and two on overlapping parts. That gives 17 cases.
+`tests/archive/inline/comment.test.ts` crosses five seeds with selection scenarios: exact, partly overlapping, two threads on separate parts, and two on overlapping parts. That gives 17 cases.
 
 | Seed | Stock | With `CollabWriteback` |
 |---|---|---|
@@ -58,6 +60,6 @@ Either end would close it:
 
 ## Our interim workaround (not a recommendation)
 
-`workaround/` is what we run in production while this is open ([its README](../workaround/README.md)). **Do not treat it as a fix.** It patches how `Y.Text` writes marks, from outside the library.
+`workaround/` is what we run in production while this is open ([its README](../../workaround/README.md)). **Do not treat it as a fix.** It patches how `Y.Text` writes marks, from outside the library.
 
 Its value here is diagnostic. Where y-prosemirror writes a mark that says the same as the one Yjs stores, it leaves that mark out of the write, so the stored one stays. That alone takes the matrix to 17/17, which places the defect in the write rather than in comments. Two other client-side extensions were tried beside it and dropped. One wrote `textStyle` without its `null` keys and added nothing. The other compacted the stored value, and it broke the two multi-thread cases on a four-attribute mark, because removing keys is itself a shape change.

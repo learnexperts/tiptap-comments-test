@@ -148,6 +148,23 @@ function editFirstBlock(editor: Editor) {
   editor.commands.insertContentAt(1 + TARGET.length, "!");
 }
 
+/** A block comment's write: the first block wrapped in a block anchor. */
+function wrapFirstBlock(editor: Editor) {
+  expect(
+    editor
+      .chain()
+      .setNodeSelection(0)
+      .wrapIn("blockThread", { "data-thread-id": "thread-1" })
+      .run(),
+    "failed to wrap the block",
+  ).toBe(true);
+}
+
+/** The records y-tiptap has stored for the fragment's position migrations. */
+function migrationRecords(ydoc: Y.Doc): number {
+  return ydoc.getMap(`__tiptap_position_migrations:root:${FIELD}`).size;
+}
+
 const marginLeftDefault = (value: number) =>
   Extension.create({
     name: "marginLeftDefault",
@@ -214,17 +231,6 @@ describe("CollabWriteback", () => {
   });
 
   describe("wrapping a block in a block anchor", () => {
-    function wrapFirstBlock(editor: Editor) {
-      expect(
-        editor
-          .chain()
-          .setNodeSelection(0)
-          .wrapIn("blockThread", { "data-thread-id": "thread-1" })
-          .run(),
-        "failed to wrap the block",
-      ).toBe(true);
-    }
-
     const stored: Array<[string, unknown]> = [
       ["theme", "dark"],
       ["language", "javascript"],
@@ -311,6 +317,64 @@ describe("CollabWriteback", () => {
           ["horizontalRule"],
         ]);
       });
+    });
+  });
+
+  describe("a position-migration record", () => {
+    const anchored = [...blockNodes, ...blockAnchors];
+
+    test("is written by a stock editor's block comment", () => {
+      const ydoc = storedBlock("paragraph", [["marginLeft", 0]]);
+      wrapFirstBlock(attach(ydoc, anchored));
+
+      expect(migrationRecords(ydoc)).toBe(1);
+    });
+
+    test("is still written with CollabWriteback by default", () => {
+      const ydoc = storedBlock("paragraph", [["marginLeft", 0]]);
+      wrapFirstBlock(attach(ydoc, [...anchored, CollabWriteback]));
+
+      expect(migrationRecords(ydoc)).toBe(1);
+    });
+
+    test("is not written with CollabWriteback for a comment-only session", () => {
+      const ydoc = storedBlock("paragraph", [["marginLeft", 0]]);
+      wrapFirstBlock(
+        attach(ydoc, [
+          ...anchored,
+          CollabWriteback.configure({ commentOnly: true }),
+        ]),
+      );
+
+      expect(migrationRecords(ydoc)).toBe(0);
+      expect(storedTree(ydoc)).toEqual([
+        ["blockThread", ["paragraph", "#text"]],
+      ]);
+    });
+
+    test("follows commentOnly as it is at the write", () => {
+      let commentOnly = false;
+      const ydoc = storedBlock("paragraph", [["marginLeft", 0]]);
+      const editor = attach(ydoc, [
+        ...anchored,
+        CollabWriteback.configure({ commentOnly: () => commentOnly }),
+      ]);
+      commentOnly = true;
+      wrapFirstBlock(editor);
+
+      expect(migrationRecords(ydoc)).toBe(0);
+    });
+
+    test("is still written by a stock editor beside a comment-only one", () => {
+      const patched = storedBlock("paragraph", [["marginLeft", 0]]);
+      const stock = storedBlock("paragraph", [["marginLeft", 0]]);
+      attach(patched, [
+        ...anchored,
+        CollabWriteback.configure({ commentOnly: true }),
+      ]);
+      wrapFirstBlock(attach(stock, anchored));
+
+      expect(migrationRecords(stock)).toBe(1);
     });
   });
 
@@ -448,8 +512,10 @@ describe("CollabWriteback", () => {
   });
 
   describe("a dead textStyle marker", () => {
-    // Two overlapping style ranges leave a marker the next one replaces at
-    // the same offset. A write that formats across it deletes it.
+    // Two overlapping style ranges, written by a y-tiptap 3.0.9 author, leave
+    // a marker the next one replaces at the same offset. A write that formats
+    // across it deletes it. 3.0.10 authors leave none, but documents 3.0.9
+    // wrote still hold them, so each is recorded as 3.0.9 stored it.
     const textStyleKit = [
       plainKit,
       TextStyle,
@@ -458,26 +524,29 @@ describe("CollabWriteback", () => {
       Color,
       BackgroundColor,
     ];
-    const STYLED = "[before] [one][two][three] [after]";
+
+    /**
+     * "[before] [one][two][three] [after]" as a 3.0.9 author left it: color
+     * on one range, then font size on another that overlaps its end or start.
+     */
+    const STYLED_BY_A_3_0_9_AUTHOR = {
+      end: "AQ0BAAcBB2RlZmF1bHQDCXBhcmFncmFwaAcAAQAGBAABAQlbYmVmb3JlXSCEAQoFW29uZV2EAQ8FW3R3b12EARQHW3RocmVlXYQBGwggW2FmdGVyXcYBCgELCXRleHRTdHlsZUx7ImZvbnRGYW1pbHkiOm51bGwsImZvbnRTaXplIjpudWxsLCJjb2xvciI6IiMyMDY0ODciLCJiYWNrZ3JvdW5kQ29sb3IiOm51bGx9xgEUARUJdGV4dFN0eWxlBG51bGzGAQ8BEAl0ZXh0U3R5bGVOeyJmb250RmFtaWx5IjpudWxsLCJmb250U2l6ZSI6IjEwcHgiLCJjb2xvciI6IiMyMDY0ODciLCJiYWNrZ3JvdW5kQ29sb3IiOm51bGx9xgEUASUJdGV4dFN0eWxlTHsiZm9udEZhbWlseSI6bnVsbCwiZm9udFNpemUiOm51bGwsImNvbG9yIjoiIzIwNjQ4NyIsImJhY2tncm91bmRDb2xvciI6bnVsbH3GAScBJQl0ZXh0U3R5bGVJeyJmb250RmFtaWx5IjpudWxsLCJmb250U2l6ZSI6IjEwcHgiLCJjb2xvciI6bnVsbCwiYmFja2dyb3VuZENvbG9yIjpudWxsfcYBGwEcCXRleHRTdHlsZQRudWxsAQEBJQE=",
+      start:
+        "AQ0BAAcBB2RlZmF1bHQDCXBhcmFncmFwaAcAAQAGBAABAQlbYmVmb3JlXSCEAQoFW29uZV2EAQ8FW3R3b12EARQHW3RocmVlXYQBGwggW2FmdGVyXcYBDwEQCXRleHRTdHlsZUx7ImZvbnRGYW1pbHkiOm51bGwsImZvbnRTaXplIjpudWxsLCJjb2xvciI6IiMyMDY0ODciLCJiYWNrZ3JvdW5kQ29sb3IiOm51bGx9xgEbARwJdGV4dFN0eWxlBG51bGzGAQoBCwl0ZXh0U3R5bGVJeyJmb250RmFtaWx5IjpudWxsLCJmb250U2l6ZSI6IjEwcHgiLCJjb2xvciI6bnVsbCwiYmFja2dyb3VuZENvbG9yIjpudWxsfcYBDwEkCXRleHRTdHlsZQRudWxsxgEnASQJdGV4dFN0eWxlTnsiZm9udEZhbWlseSI6bnVsbCwiZm9udFNpemUiOiIxMHB4IiwiY29sb3IiOiIjMjA2NDg3IiwiYmFja2dyb3VuZENvbG9yIjpudWxsfcYBFAEVCXRleHRTdHlsZUx7ImZvbnRGYW1pbHkiOm51bGwsImZvbnRTaXplIjpudWxsLCJjb2xvciI6IiMyMDY0ODciLCJiYWNrZ3JvdW5kQ29sb3IiOm51bGx9AQEBJAE=",
+    };
 
     function select(editor: Editor, part: string) {
       const from = 1 + editor.state.doc.textContent.indexOf(part);
       return editor.chain().setTextSelection({ from, to: from + part.length });
     }
 
-    /** A document an author styled, as another client receives it. */
-    function styledByAnAuthor(colorFirstOn: string, thenFontSizeOn: string) {
-      const authored = new Y.Doc();
-      const author = attach(authored, textStyleKit);
-      author.commands.setContent({
-        type: "paragraph",
-        content: [{ type: "text", text: STYLED }],
-      });
-      select(author, colorFirstOn).setColor("#206487").run();
-      select(author, thenFontSizeOn).setFontSize("10px").run();
-
+    /** The document as another client receives it. */
+    function styledByAnAuthor(overlap: keyof typeof STYLED_BY_A_3_0_9_AUTHOR) {
       const ydoc = new Y.Doc();
-      Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(authored));
+      Y.applyUpdate(
+        ydoc,
+        Buffer.from(STYLED_BY_A_3_0_9_AUTHOR[overlap], "base64"),
+      );
       return ydoc;
     }
 
@@ -505,11 +574,11 @@ describe("CollabWriteback", () => {
     }
 
     describe.for([
-      ["at the end of the first range", "[one][two]", "[two][three]"],
-      ["at the start of the first range", "[two][three]", "[one][two]"],
-    ])("%s", ([, colorOn, fontSizeOn]) => {
+      ["at the end of the first range", "end"],
+      ["at the start of the first range", "start"],
+    ] as const)("%s", ([, overlap]) => {
       test("is deleted by a stock editor's comment", () => {
-        const ydoc = styledByAnAuthor(colorOn, fontSizeOn);
+        const ydoc = styledByAnAuthor(overlap);
         const before = textStyleMarkers(ydoc);
         commentAcross(attach(ydoc, [...textStyleKit, InlineThread]));
 
@@ -517,7 +586,7 @@ describe("CollabWriteback", () => {
       });
 
       test("is left as stored with CollabWriteback", () => {
-        const ydoc = styledByAnAuthor(colorOn, fontSizeOn);
+        const ydoc = styledByAnAuthor(overlap);
         const before = textStyleMarkers(ydoc);
         commentAcross(
           attach(ydoc, [...textStyleKit, InlineThread, CollabWriteback]),

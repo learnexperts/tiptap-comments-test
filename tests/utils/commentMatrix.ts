@@ -13,7 +13,7 @@ import { createThreads, type SelectionFactory } from "./thread";
  * scenarios, shared by every suite that wants to run it under a particular
  * editor configuration.
  *
- * `tests/inline/comment.test.ts` runs it stock, where the failures are the bug as an
+ * `tests/archive/inline/comment.test.ts` runs it stock, where the failures are the bug as an
  * ordinary user meets it, and again with the workaround to show what that
  * recovers. Keeping both on one definition means they cannot drift.
  */
