@@ -9,7 +9,7 @@ Two issues are open, on `@tiptap/y-tiptap` 3.0.10 against collab server 3.108.2:
 | 2 | A block comment is undone when the stored block lacks a default | [docs/block-anchor-undone.md](docs/block-anchor-undone.md) | [`tests/block/`](tests/block) | `pnpm test:block` | [addendum to 1](docs/tiptap/addendum-block-anchor.txt) |
 | 5 | y-tiptap 3.0.10's position-migration record undoes the comment | [docs/position-migrations.md](docs/position-migrations.md) | [`tests/migrations/`](tests/migrations) | `pnpm test:migrations` | [new issue](docs/tiptap/position-migrations.txt), draft |
 
-Issues 1, 3 and 4 no longer reproduce and are [archived](docs/archive/README.md), with their tests (`pnpm test:archive`).
+Issues 1, 3 and 4 no longer reproduce, and issue 6 was fixed in `@tiptap-pro/extension-comments` 3.12.9. They are [archived](docs/archive/README.md), with their tests (`pnpm test:archive`).
 
 These commands are expected to fail: every test asserts what should happen, so the red ones are the report and turn green when an issue is fixed ([ADR 0001](docs/adr/0001-tests-are-a-bug-report.md)).
 
@@ -86,7 +86,7 @@ pnpm test:migrations
 # Both issues with our stopgap applied (needs Docker collab server)
 pnpm test:probes
 
-# Archived issues 1, 3 and 4, both halves (needs Docker, except their mechanisms)
+# Archived issues 1, 3, 4 and 6, both halves (needs Docker, except their mechanisms)
 pnpm test:archive
 
 # Helper unit tests — offline, no server, no licence key
@@ -125,7 +125,7 @@ Each file makes one claim, and each **asserts the behaviour we expect** — so t
 | `tests/migrations/migration-record.test.ts` | **Issue 5, the mechanism.** After an author's edit, a client that only comments writes a position-migration record: for every block comment, and for an inline one where a block was emptied of its text. **7 of 10 red.** | no |
 | `tests/migrations/position-migrations.test.ts` | **Issue 5.** On a comment-only connection, that record costs the thread anchor. **7 of 10 red.** | yes |
 | `writeback`-tagged runs in both matrix files | **The workaround.** Each matrix again under `with the writeback fix`, which only adds `CollabWriteback.configure({ commentOnly: true })` to the extensions: **12/12** and **10/10**. Left out of `pnpm test`; `pnpm test:probes` runs them. | yes |
-| `tests/archive/**` | Not part of the report: issues 1, 3 and 4, kept runnable. See [the archive](docs/archive/README.md). | mostly |
+| `tests/archive/**` | Not part of the report: issues 1, 3, 4 and 6, kept runnable. See [the archive](docs/archive/README.md). | mostly |
 | `tests/utils/*.test.ts` | The selection helpers the matrix relies on place their ranges correctly. | no |
 | `workaround/*.test.ts` | Not part of the report: the stopgap's own contract — what it changes, and that it changes it only for the editor it is added to. Green. | no |
 

@@ -12,7 +12,10 @@ a fourth issue, `tests/overlap`, with a workaround half like issues 1 and 2.
 Amended 2026-11-09: the report moved to y-tiptap 3.0.10, which production
 runs, and gained a fifth issue, `tests/migrations`. Issues 1, 3 and 4 no longer
 reproduce against the server and moved to `tests/archive/`, a project of its
-own outside `pnpm test`. See the considered options._
+own outside `pnpm test`. See the considered options. Amended 2026-11-18: a
+sixth issue, introduced by comments 3.12.2 and fixed in 3.12.9 the day after
+it was written up, went straight to `tests/archive/resolve/`. The report now
+runs on comments 3.12.9._
 
 This repository exists to communicate TipTap collab + CommentsKit issues
 to the TipTap team. `tests/` is the artifact we hand them, so it is optimised for a

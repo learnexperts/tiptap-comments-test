@@ -1,0 +1,82 @@
+Draft for submission to TipTap support, as a new request.
+
+The form fields do not render markdown, so no headings, bold, backticks, tables or links. Paragraphs are single lines. Indented blocks are the only place line breaks matter. Copy each section between the [ FIELD ] markers, and keep this in sync with docs/resolved-thread-anchor.md.
+
+
+[ FIELD 1 - Provide a short title for your request ]
+
+Since comments 3.12.2, resolveThread removes the anchor, and a thread resolved by a comment-only user, or starting a paragraph, can never be reopened on its text
+
+
+[ FIELD 2 - Describe the problem you're experiencing in detail ]
+
+This makes every comment a comment-only user resolves unrecoverable in our product.
+
+Since @tiptap-pro/extension-comments 3.12.2, resolveThread removes the thread's inlineThread mark or blockThread wrapper from the document. It keeps the anchor's ranges in the root map __tiptapcollab__resolvedThreadAnchors, and unresolveThread restores from there. Up to 3.12.1, resolveThread only set resolvedAt and the anchor stayed. The 3.12.2 changelog entry describes this as a fix to overlapping highlights.
+
+We found three ways a resolved thread loses its text for good.
+
+1. A comment-only user resolves it (JWT with the document in readonlyDocumentNames and commentDocumentNames). The server keeps the anchor removal but undoes the write to the anchors map. With no ranges kept, unresolveThread returns false for everyone, editors included. The server logs:
+
+    Undoing change to document <doc> from guest:<sub> because non-allowed type was touched. Touched types: __tiptapcollab__resolvedThreadAnchors.
+
+2. The thread starts a paragraph. The ranges are kept, but unresolveThread returns false when the anchor begins at the paragraph's first character, even for an editor, in the session that resolved it, straight away.
+
+3. Someone undoes anything. After every undo or redo, the extension calls removeThread on every resolved thread that still has an anchor, whether or not the undo touched it, and keeps no ranges. That covers every thread resolved before 3.12.2, or by a client on an earlier version.
+
+There is no way to opt out that we can find. resolveThread removes the anchor unconditionally. onThreadStateChanged runs after the provider reports the change, so a handler that never calls defaultHandler still sees the anchor removed, locally and on every other client. Its documentation says "By default, only permanent deletion removes the anchor."
+
+Nothing fails in the client: resolveThread returns true, and the loss shows up only when someone tries to reopen.
+
+Each case comments on plain text and checks the anchor from a fresh connection:
+
+    case                                                  3.12.1     3.12.8
+    editor resolves: anchor kept                          kept       removed
+      with onThreadStateChanged skipping the default      kept       removed
+      then reopens after a reload                         reopened   reopened
+    comment-only resolves: anchor kept                    kept       removed
+      with onThreadStateChanged skipping the default      kept       removed
+      then reopens after a reload                         reopened   refused
+      then an editor reopens it                           reopened   refused
+    editor resolves a thread that starts a paragraph,     reopened   refused
+      then reopens it at once
+    editor undoes an unrelated edit beside a thread       kept       removed
+      resolved with resolvedAt only, as 3.12.1 does
+
+ENVIRONMENT
+
+    @tiptap-pro/extension-comments    3.12.8   (useLegacyWrapping: false)
+    @tiptap-pro/provider              3.12.8
+    @tiptap/core                      3.30.3
+    @tiptap/extension-collaboration   3.30.3
+    @tiptap/y-tiptap                  3.0.10
+    yjs                               13.6.32
+
+    Collab server image
+      container.tiptap.dev/collaboration/server:latest (COLLABORATION_VERSION 3.108.2)
+
+
+[ FIELD 3 - Describe what you expected to happen ]
+
+A resolved thread should keep its text, as it did up to 3.12.1, or at least always be reopenable on it. We need:
+
+1. If removing the anchor on resolve is intended, a way to keep it, an option or onThreadStateChanged, as the old behaviour.
+
+2. The server to accept a comment-only session's write to __tiptapcollab__resolvedThreadAnchors, as it does __tiptapcollab__threads. Otherwise, the client should not remove an anchor it cannot keep.
+
+3. unresolveThread to restore an anchor that starts a paragraph.
+
+4. The undo sweep to touch only threads the undo affected, and to keep ranges for any anchor it removes.
+
+5. Any way to recover threads already resolved this way.
+
+
+[ FIELD 4 - Code Example Link ]
+
+https://github.com/learnexperts/tiptap-comments-test
+
+Needs Docker and an on-premises licence key; setup is in the README.
+
+    pnpm test:resolve
+
+9 cases, 8 red on 3.12.8 and none on 3.12.1. Each asserts what 3.12.1 does. Write-up: docs/resolved-thread-anchor.md.
