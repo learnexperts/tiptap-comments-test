@@ -195,7 +195,7 @@ describeMigrationMatrix();
 
 describe("with the writeback fix", { tags: ["writeback"] }, () => {
   test.override("extensions", ({ baseExtensions }) => [
-    CollabWriteback.configure({ commentOnly: true }),
+    CollabWriteback,
     ...baseExtensions,
   ]);
   describeMigrationMatrix();

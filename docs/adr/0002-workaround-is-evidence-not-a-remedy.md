@@ -6,7 +6,9 @@ decision is unchanged. Amended 2026-10-07: a fourth mechanism, keeping an
 emptied block's text, joins the element half. Amended 2026-11-09: a fifth
 mechanism, writing no position-migration record, is the first that changes a
 write an editor needs, so it is off unless `CollabWriteback` is configured
-`commentOnly`._
+`commentOnly`. Amended 2026-11-19: the fifth mechanism and its `commentOnly`
+option are removed (LD-8581); y-tiptap 3.2.0 writes no position-migration
+record._
 
 `workaround/` is the one directory here that is not test support: it is the
 stopgap we run in production while the defects are open. It lives in its own
@@ -39,9 +41,8 @@ the point.
 - `tests/` may import `CollabWriteback` from `workaround/`; never the reverse.
   Biome enforces both directions.
 - The halves go away separately: the `textStyle` mechanism when the inline
-  defect is fixed, the element mechanisms when the block defect is fixed, and
-  the position-migration mechanism when issue 5 is. When
-  both are gone, so are this directory (its tests included) and the
+  defect is fixed, and the element mechanisms when the block defect is fixed.
+  The position-migration mechanism went with y-tiptap 3.2.0. When both are gone, so are this directory (its tests included) and the
   `writeback` halves of the matrix files. Nothing else in the repo depends on the workaround.
 - Every mechanism has earned its place by ablation; `workaround/README.md`
   records the table, including two mechanisms deleted for doing no work.

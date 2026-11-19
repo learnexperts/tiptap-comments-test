@@ -160,11 +160,6 @@ function wrapFirstBlock(editor: Editor) {
   ).toBe(true);
 }
 
-/** The records y-tiptap has stored for the fragment's position migrations. */
-function migrationRecords(ydoc: Y.Doc): number {
-  return ydoc.getMap(`__tiptap_position_migrations:root:${FIELD}`).size;
-}
-
 const marginLeftDefault = (value: number) =>
   Extension.create({
     name: "marginLeftDefault",
@@ -317,64 +312,6 @@ describe("CollabWriteback", () => {
           ["horizontalRule"],
         ]);
       });
-    });
-  });
-
-  describe("a position-migration record", () => {
-    const anchored = [...blockNodes, ...blockAnchors];
-
-    test("is written by a stock editor's block comment", () => {
-      const ydoc = storedBlock("paragraph", [["marginLeft", 0]]);
-      wrapFirstBlock(attach(ydoc, anchored));
-
-      expect(migrationRecords(ydoc)).toBe(1);
-    });
-
-    test("is still written with CollabWriteback by default", () => {
-      const ydoc = storedBlock("paragraph", [["marginLeft", 0]]);
-      wrapFirstBlock(attach(ydoc, [...anchored, CollabWriteback]));
-
-      expect(migrationRecords(ydoc)).toBe(1);
-    });
-
-    test("is not written with CollabWriteback for a comment-only session", () => {
-      const ydoc = storedBlock("paragraph", [["marginLeft", 0]]);
-      wrapFirstBlock(
-        attach(ydoc, [
-          ...anchored,
-          CollabWriteback.configure({ commentOnly: true }),
-        ]),
-      );
-
-      expect(migrationRecords(ydoc)).toBe(0);
-      expect(storedTree(ydoc)).toEqual([
-        ["blockThread", ["paragraph", "#text"]],
-      ]);
-    });
-
-    test("follows commentOnly as it is at the write", () => {
-      let commentOnly = false;
-      const ydoc = storedBlock("paragraph", [["marginLeft", 0]]);
-      const editor = attach(ydoc, [
-        ...anchored,
-        CollabWriteback.configure({ commentOnly: () => commentOnly }),
-      ]);
-      commentOnly = true;
-      wrapFirstBlock(editor);
-
-      expect(migrationRecords(ydoc)).toBe(0);
-    });
-
-    test("is still written by a stock editor beside a comment-only one", () => {
-      const patched = storedBlock("paragraph", [["marginLeft", 0]]);
-      const stock = storedBlock("paragraph", [["marginLeft", 0]]);
-      attach(patched, [
-        ...anchored,
-        CollabWriteback.configure({ commentOnly: true }),
-      ]);
-      wrapFirstBlock(attach(stock, anchored));
-
-      expect(migrationRecords(stock)).toBe(1);
     });
   });
 

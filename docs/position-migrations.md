@@ -63,10 +63,6 @@ Either end would close it:
 
 ## The workaround
 
-`CollabWriteback.configure({ commentOnly: true })` makes the editor write its changes without the record, while `commentOnly` holds ([mechanism 5](../workaround/README.md#mechanisms)). A comment-only session makes no structural edit for a record to describe, so nothing it could write is lost. With it on the comment-only session, all ten cases keep their comment, and so does issue 2's matrix. The same file runs that half under the `writeback` tag (`pnpm test:probes tests/migrations`).
-
-Leave it off for a session that may edit: its records are what keep other clients' cursors and selections on text it restructures. It patches an internal of y-tiptap's binding, `_prosemirrorChanged(doc, plan)`, so check it on every y-tiptap upgrade.
-
-It does not cover undo. `restorePositionHistory` writes records through its own path when a comment-only user undoes, and that is untested.
+Mechanism 5 dropped the record while a session could only comment. It was removed in LD-8581: y-tiptap 3.2.0 writes no record, and on it `migration-record.test.ts` passes 10/10. The `writeback` halves now add `CollabWriteback` with no options.
 
 The draft we send Tiptap is in [`tiptap/position-migrations.txt`](tiptap/position-migrations.txt).
