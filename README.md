@@ -2,7 +2,7 @@
 
 A minimal reproduction of the ways a TipTap collab + CommentsKit **comment-only** connection (`readonlyDocumentNames` + `commentDocumentNames`) loses a comment. In each, the comment appears locally, then the server undoes the whole update on sync and the thread is left with nothing to point at.
 
-Two issues are open, on `@tiptap/y-tiptap` 3.0.10 against collab server 3.108.2:
+Two issues are open, reported on `@tiptap/y-tiptap` 3.0.10 against collab server 3.108.2. The repo now runs y-tiptap 3.2.0, where issue 5's offline test passes 10/10; its server matrix has not been re-run on 3.2.0.
 
 | # | Issue | Write-up | Tests | Run | With Tiptap |
 |---|---|---|---|---|---|
@@ -124,7 +124,7 @@ Each file makes one claim, and each **asserts the behaviour we expect** — so t
 | `tests/block/block-anchor.test.ts` | **Issue 2.** A block comment on a block that differs from the rebuilt copy loses its anchor. On 3.0.10 every stock case is also undone by issue 5, so **12 of 12 red**; with issue 5's record dropped, 2 of 12, both a block stored without its `marginLeft` default. | yes |
 | `tests/migrations/migration-record.test.ts` | **Issue 5, the mechanism.** After an author's edit, a client that only comments writes a position-migration record: for every block comment, and for an inline one where a block was emptied of its text. **7 of 10 red.** | no |
 | `tests/migrations/position-migrations.test.ts` | **Issue 5.** On a comment-only connection, that record costs the thread anchor. **7 of 10 red.** | yes |
-| `writeback`-tagged runs in both matrix files | **The workaround.** Each matrix again under `with the writeback fix`, which only adds `CollabWriteback.configure({ commentOnly: true })` to the extensions: **12/12** and **10/10**. Left out of `pnpm test`; `pnpm test:probes` runs them. | yes |
+| `writeback`-tagged runs in both matrix files | **The workaround.** Each matrix again under `with the writeback fix`, which only adds `CollabWriteback` to the extensions: **12/12** and **10/10**. Left out of `pnpm test`; `pnpm test:probes` runs them. | yes |
 | `tests/archive/**` | Not part of the report: issues 1, 3, 4 and 6, kept runnable. See [the archive](docs/archive/README.md). | mostly |
 | `tests/utils/*.test.ts` | The selection helpers the matrix relies on place their ranges correctly. | no |
 | `workaround/*.test.ts` | Not part of the report: the stopgap's own contract — what it changes, and that it changes it only for the editor it is added to. Green. | no |

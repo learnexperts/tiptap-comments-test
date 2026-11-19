@@ -80,7 +80,7 @@ claim, and a failing test *is* the report rather than a problem to fix.
 - New cases go into the matrix they belong to, `tests/utils/blockMatrix.ts`
   or the one in `tests/migrations/position-migrations.test.ts`. The stock and
   workaround runs call the same matrix, and the workaround run is the stock
-  `baseExtensions` plus `CollabWriteback.configure({ commentOnly: true })`, so
+  `baseExtensions` plus `CollabWriteback`, so
   they cannot drift apart.
 - Running a matrix file directly (`vitest run tests/block/block-anchor.test.ts`) runs both
   halves; pass `--tags-filter='!writeback'` for the report alone.

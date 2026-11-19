@@ -28,6 +28,6 @@ The archive runs on the report's y-tiptap, 3.0.10, where [issue 5](../position-m
 | `overlap/overlapping-styles.test.ts` | 12/12 | — |
 | `resolve/resolved-thread-anchor.test.ts` | 9/9 | — |
 
-The `writeback` halves add `CollabWriteback.configure({ commentOnly: true })` and are green.
+The `writeback` halves add `CollabWriteback` and are green.
 
 The Tiptap drafts are as submitted. Their paths and commands predate the archive: read `tests/inline/` as `tests/archive/inline/`, and `pnpm test:inline` as `pnpm test:archive tests/archive/inline`, and likewise for the others.
